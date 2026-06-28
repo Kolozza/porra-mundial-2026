@@ -113,8 +113,16 @@ const PLAYER_COLORS = {
 };
 
 const COLOR_PALETTE = [
-  "#f97316","#a855f7","#eab308","#14b8a6",
-  "#ec4899","#84cc16","#06b6d4","#6366f1",
+  "#f97316", // naranja
+  "#facc15", // amarillo
+  "#4ade80", // verde
+  "#2dd4bf", // turquesa
+  "#2563eb", // azul
+  "#7c3aed", // violeta
+  "#c084fc", // malva
+  "#f472b6", // rosa
+  "#fb7185", // coral
+  "#a3e635", // lima
 ];
 
 function getPlayerColor(name) {
@@ -912,7 +920,6 @@ function Picks({ admin, standings, meId }) {
   const locked = !!admin.locked?.[round.id];
   const fx = fixturesFor(admin, round.id);
   const [selected, setSelected] = useState([]);
-  const [matchFilter, setMatchFilter] = useState("all");
 
   if (!locked) {
     return (
@@ -940,14 +947,14 @@ function Picks({ admin, standings, meId }) {
     selected.length === 0 ? others : others.filter((p) => selected.includes(p.id));
   const visiblePlayers = [...(me ? [me] : []), ...visibleOthers];
 
-  const indexedFx = fx.map((m, i) => ({ m, i })).filter(({ i }) => {
-    const id = matchId(round.id, i);
-    const res = admin.results?.[id];
-    const resolved = res && res.adv && res.h !== "" && res.a !== "";
-    if (matchFilter === "proximos") return !resolved;
-    if (matchFilter === "jugados") return resolved;
-    return true;
+  // Índice del próximo partido sin resultado
+  const nextIdx = fx.findIndex((_, i) => {
+    const res = admin.results?.[matchId(round.id, i)];
+    return !(res && res.adv && res.h !== "" && res.a !== "");
   });
+
+  // Todos los partidos: resueltos siempre visibles, el próximo visible, el resto ocultos
+  const indexedFx = fx.map((m, i) => ({ m, i }));
 
   return (
     <div className="pane">
@@ -956,18 +963,6 @@ function Picks({ admin, standings, meId }) {
           <h2>{round.name}</h2>
           <span className="mult">pronósticos revelados</span>
         </div>
-      </div>
-
-      <div className="picks-filters">
-        {[["all","Todos"],["proximos","Próximos"],["jugados","Jugados"]].map(([val, label]) => (
-          <button
-            key={val}
-            className={matchFilter === val ? "chip on" : "chip"}
-            onClick={() => setMatchFilter(val)}
-          >
-            {label}
-          </button>
-        ))}
       </div>
 
       {others.length > 0 && (
@@ -993,13 +988,6 @@ function Picks({ admin, standings, meId }) {
         </div>
       )}
 
-      {indexedFx.length === 0 && (
-        <div className="empty" style={{ padding: "24px 0" }}>
-          {matchFilter === "proximos" ? "No quedan partidos por jugar." : "Aún no hay resultados."}
-        </div>
-      )}
-
-      {indexedFx.length > 0 && (
       <div className="picks-scroll">
         <table className="picks-table">
           <thead>
@@ -1021,8 +1009,11 @@ function Picks({ admin, standings, meId }) {
               const id = matchId(round.id, i);
               const res = admin.results?.[id];
               const resolved = res && res.adv && res.h !== "" && res.a !== "";
+              const isNext = i === nextIdx;
+              // Ocultar picks ajenos en partidos futuros (no resueltos y no son el próximo)
+              const hideOthers = !resolved && !isNext;
               return (
-                <tr key={id} className="picks-row">
+                <tr key={id} className={`picks-row${!resolved && !isNext ? " picks-row-hidden" : ""}`}>
                   <td className="picks-match-cell">
                     <div className="picks-teams">
                       <span><Flag country={m[0]} size={13} /> {m[0]}</span>
@@ -1033,8 +1024,12 @@ function Picks({ admin, standings, meId }) {
                         {res.h}–{res.a} · <Flag country={res.adv} size={11} />
                       </div>
                     )}
+                    {isNext && !resolved && (
+                      <div className="picks-next-badge">Próximo</div>
+                    )}
                   </td>
                   {visiblePlayers.map((p) => {
+                    const isMe = p.id === meId;
                     const pred = p.preds?.[round.id]?.[id];
                     const pa = pred ? predAdv(pred, m[0], m[1]) : null;
                     const advOk = resolved && pa === res.adv;
@@ -1042,12 +1037,15 @@ function Picks({ admin, standings, meId }) {
                       Number(pred.h) === Number(res.h) &&
                       Number(pred.a) === Number(res.a);
                     const noPred = !pred || (pred.h === "" && pred.a === "");
+                    const hidden = hideOthers && !isMe;
                     return (
                       <td
                         key={p.id}
-                        className={`picks-cell${p.id === meId ? " picks-me-cell" : ""}${scoreOk ? " score-ok" : advOk ? " adv-ok" : ""}`}
+                        className={`picks-cell${isMe ? " picks-me-cell" : ""}${scoreOk ? " score-ok" : advOk ? " adv-ok" : ""}`}
                       >
-                        {noPred ? (
+                        {hidden ? (
+                          <span className="picks-hidden">🔒</span>
+                        ) : noPred ? (
                           <span className="picks-empty">—</span>
                         ) : (
                           <>
@@ -1064,7 +1062,6 @@ function Picks({ admin, standings, meId }) {
           </tbody>
         </table>
       </div>
-      )}
       <p className="mini muted center">
         🟢 Acertó quién pasa · 🟡 Además acertó el marcador exacto
       </p>
@@ -1906,7 +1903,14 @@ const CSS = `
 
 /* ── Responsive móvil ────────────────────────────────────── */
 /* ── Picks ───────────────────────────────────────────────── */
-.picks-filters{display:flex;gap:6px;margin-bottom:2px}
+.picks-next-badge{
+  display:inline-block;margin-top:4px;font-size:10px;font-weight:800;
+  color:var(--gold);background:rgba(255,215,0,.1);
+  border:1px solid rgba(255,215,0,.3);padding:2px 7px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.05em;
+}
+.picks-hidden{color:var(--muted);font-size:14px;opacity:.5}
+.picks-row-hidden td{opacity:.55}
 .picks-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line)}
 .picks-table{width:100%;border-collapse:collapse;font-size:12px;background:var(--panel)}
 .picks-table th{
