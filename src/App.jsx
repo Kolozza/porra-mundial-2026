@@ -565,7 +565,7 @@ function Jugar({ admin, me, onSave }) {
       <section className="champ-pick">
         <div className="champ-head">
           <span className="gold">★</span> Apuestas de futuro
-          <span className="bonus-tag">se resuelven al final · {BONUS_TOTAL} pts en juego</span>
+          <span className="bonus-tag">se resuelven al final · {BONUS.champion + BONUS.pichichi} pts en juego</span>
         </div>
 
         <div className="future-grid">
