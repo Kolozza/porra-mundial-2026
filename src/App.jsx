@@ -655,7 +655,7 @@ function Jugar({ admin, me, onSave }) {
             <select
               className="sel wide"
               value={draft.champion}
-              disabled={champLocked && me.champion !== ""}
+              disabled={champLocked}
               onChange={(e) => setDraft((d) => ({ ...d, champion: e.target.value }))}
             >
               <option value="">Elige campeón…</option>
@@ -669,7 +669,7 @@ function Jugar({ admin, me, onSave }) {
             <label>Pichichi (máximo goleador) <span className="gold">+{BONUS.pichichi}</span></label>
             <PichichiPicker
               value={draft.pichichi}
-              disabled={champLocked && me.pichichi !== ""}
+              disabled={champLocked}
               onChange={(v) => setDraft((d) => ({ ...d, pichichi: v }))}
             />
           </div>
