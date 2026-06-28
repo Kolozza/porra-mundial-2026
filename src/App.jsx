@@ -874,6 +874,47 @@ function PichichiPicker({ value, disabled, onChange }) {
   );
 }
 
+/* ---------------- Forma y máximo potencial ---------------- */
+function getForm(player, admin) {
+  const results = [];
+  for (const R of ROUNDS) {
+    const fx = fixturesFor(admin, R.id);
+    fx.forEach((m, i) => {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      if (!res || res.adv == null || res.h === "" || res.a === "") return;
+      const pred = player.preds?.[R.id]?.[id];
+      if (!pred || (pred.h === "" && pred.a === "")) { results.push("skip"); return; }
+      results.push(predAdv(pred, m[0], m[1]) === res.adv ? "hit" : "miss");
+    });
+  }
+  return results.slice(-5);
+}
+
+function maxRemaining(player, admin) {
+  let max = 0;
+  for (const R of ROUNDS) {
+    const fx = fixturesFor(admin, R.id);
+    let canPleno = !!PLENO[R.id];
+    let anyUnresolved = false;
+    fx.forEach((m, i) => {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+      if (!resolved) { anyUnresolved = true; max += 5 * R.mult; return; }
+      if (canPleno) {
+        const pred = player.preds?.[R.id]?.[id];
+        const pa = pred ? predAdv(pred, m[0], m[1]) : null;
+        if (!pa || pa !== res.adv) canPleno = false;
+      }
+    });
+    if (canPleno && anyUnresolved) max += PLENO[R.id];
+  }
+  if (!admin.champion) max += BONUS.champion;
+  if (!admin.pichichi) max += BONUS.pichichi;
+  return max;
+}
+
 /* ---------------- Carrera (chart) ---------------- */
 function buildHistory(players, admin) {
   const events = [];
@@ -1028,7 +1069,10 @@ function Clasificacion({ standings, admin, meId }) {
   return (
     <div className="pane">
       <div className="board">
-        {standings.map(({ p, s }, i) => (
+        {standings.map(({ p, s }, i) => {
+          const form = getForm(p, admin);
+          const maxRem = maxRemaining(p, admin);
+          return (
           <div key={p.id}>
             <div
               className={`row ${p.id === meId ? "me" : ""} ${i < 3 ? "podium" : ""}`}
@@ -1036,14 +1080,24 @@ function Clasificacion({ standings, admin, meId }) {
             >
               <span className="rank">{medals[i] || i + 1}</span>
               <span className="pname">
-                <span className="player-dot" style={{ background: getPlayerColor(p.name) }} />
-                {p.name}
-                {admin.champion && p.champion === admin.champion && (
-                  <span className="champ-won">★ campeón</span>
+                <span className="pname-top">
+                  <span className="player-dot" style={{ background: getPlayerColor(p.name) }} />
+                  {p.name}
+                  {admin.champion && p.champion === admin.champion && (
+                    <span className="champ-won">★ campeón</span>
+                  )}
+                </span>
+                {form.length > 0 && (
+                  <span className="form-dots">
+                    {form.map((f, fi) => <span key={fi} className={`form-dot fd-${f}`} />)}
+                  </span>
                 )}
               </span>
-              {s.pending > 0 && <span className="pend">{s.pending} pdte.</span>}
-              <span className="pts">{s.total}</span>
+              <span className="pts-wrap">
+                {s.pending > 0 && <span className="pend">{s.pending} pdte.</span>}
+                <span className="pts">{s.total}</span>
+                {maxRem > 0 && <span className="max-rem">+{maxRem} máx</span>}
+              </span>
             </div>
             {open === p.id && (
               <div className="breakdown">
@@ -1066,7 +1120,8 @@ function Clasificacion({ standings, admin, meId }) {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
       <p className="mini muted center">Toca un nombre para ver el desglose por ronda.</p>
 
@@ -1176,6 +1231,21 @@ function Picks({ admin, standings, meId }) {
               const isLive   = res && res.live && !resolved;
               const isNext = i === nextIdx;
               const hideOthers = !resolved && !isLive && !isNext;
+
+              // Consenso: cuántos jugadores apostaron por cada equipo
+              const consHome = allPlayers.filter(pl => {
+                const pr = pl.preds?.[round.id]?.[id];
+                return pr && predAdv(pr, m[0], m[1]) === m[0];
+              }).length;
+              const consAway = allPlayers.filter(pl => {
+                const pr = pl.preds?.[round.id]?.[id];
+                return pr && predAdv(pr, m[0], m[1]) === m[1];
+              }).length;
+              const consTotal = allPlayers.filter(pl => {
+                const pr = pl.preds?.[round.id]?.[id];
+                return pr && (pr.h !== "" || pr.a !== "");
+              }).length;
+
               return (
                 <tr key={id} className={`picks-row${hideOthers ? " picks-row-hidden" : ""}`}>
                   <td className="picks-match-cell">
@@ -1197,6 +1267,19 @@ function Picks({ admin, standings, meId }) {
                     )}
                     {isNext && !resolved && !isLive && (
                       <div className="picks-next-badge">Próximo</div>
+                    )}
+                    {consTotal > 0 && (
+                      <div className="consensus">
+                        <div className="cons-bar">
+                          <div className="cons-h" style={{ flex: consHome || 0.01 }} />
+                          <div className="cons-none" style={{ flex: Math.max(0, consTotal - consHome - consAway) }} />
+                          <div className="cons-a" style={{ flex: consAway || 0.01 }} />
+                        </div>
+                        <div className="cons-nums">
+                          <span className="cons-hn"><Flag country={m[0]} size={9}/> {consHome}</span>
+                          <span className="cons-an">{consAway} <Flag country={m[1]} size={9}/></span>
+                        </div>
+                      </div>
                     )}
                   </td>
                   {visiblePlayers.map((p) => {
@@ -1980,7 +2063,23 @@ const CSS = `
 .row:nth-child(1) .row{border-left:3px solid var(--gold)}
 .row.me{border-color:rgba(200,220,200,.4);box-shadow:0 0 0 1px rgba(200,220,200,.1)}
 .rank{width:32px;text-align:center;font-weight:900;font-size:20px;color:var(--muted)}
-.pname{flex:1;font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pname{flex:1;font-weight:700;font-size:15px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+.pname-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.form-dots{display:flex;gap:4px;padding-left:18px}
+.form-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fd-hit{background:#2CA02C;box-shadow:0 0 4px #2CA02C80}
+.fd-miss{background:#D62728;box-shadow:0 0 4px #D6272880}
+.fd-skip{background:rgba(255,255,255,0.18)}
+.pts-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+.max-rem{font-size:9px;color:var(--muted);font-weight:700;white-space:nowrap}
+.consensus{margin-top:6px}
+.cons-bar{height:5px;border-radius:3px;overflow:hidden;display:flex;gap:1px;background:rgba(255,255,255,0.06)}
+.cons-h{background:#2CA02C;border-radius:3px 0 0 3px}
+.cons-a{background:#D62728;border-radius:0 3px 3px 0}
+.cons-none{background:rgba(255,255,255,0.1)}
+.cons-nums{display:flex;justify-content:space-between;font-size:9px;font-weight:800;margin-top:3px}
+.cons-hn{color:#2CA02C;display:flex;align-items:center;gap:3px}
+.cons-an{color:#D62728;display:flex;align-items:center;gap:3px}
 .player-dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0;vertical-align:middle}
 .champ-won{
   font-size:10px;color:var(--gold);
