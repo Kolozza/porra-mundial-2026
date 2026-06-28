@@ -22,7 +22,7 @@ export default function handler() {
         src: "https://porra-mundial-2026-seven-tau.vercel.app/og-image.jpg",
         width: 1200,
         height: 460,
-        style: { objectFit: "cover", objectPosition: "center 10%" },
+        style: { objectFit: "cover", objectPosition: "center 30%" },
       }),
       // Texto abajo
       React.createElement(
