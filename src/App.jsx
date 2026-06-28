@@ -407,6 +407,7 @@ function MainApp() {
         {[
           ["jugar", "Jugar"],
           ["clasi", "Clasificación"],
+          ["picks", "Picks"],
           ["reglas", "Reglas"],
         ].map(([id, label]) => (
           <button
@@ -425,6 +426,8 @@ function MainApp() {
         <Jugar admin={admin} me={me} onSave={handleSave} />
       ) : tab === "clasi" ? (
         <Clasificacion standings={standings} admin={admin} meId={meId} />
+      ) : tab === "picks" ? (
+        <Picks admin={admin} standings={standings} />
       ) : (
         <Reglas />
       )}
@@ -836,6 +839,100 @@ function Clasificacion({ standings, admin, meId }) {
         ))}
       </div>
       <p className="mini muted center">Toca un nombre para ver el desglose por ronda.</p>
+    </div>
+  );
+}
+
+/* ---------------- Picks (pronósticos revelados) ---------------- */
+function Picks({ admin, standings }) {
+  const round = ROUNDS.find((r) => r.id === admin.openRound) || ROUNDS[0];
+  const locked = !!admin.locked?.[round.id];
+  const fx = fixturesFor(admin, round.id);
+
+  if (!locked) {
+    return (
+      <div className="empty">
+        Los pronósticos se revelan cuando el admin cierra la ronda.<br />
+        <span style={{ fontSize: 12 }}>Vuelve aquí una vez cerrada.</span>
+      </div>
+    );
+  }
+
+  if (fx.length === 0) {
+    return <div className="empty">No hay cruces cargados para esta ronda.</div>;
+  }
+
+  const players = standings.map((s) => s.p);
+
+  return (
+    <div className="pane">
+      <div className="round-banner">
+        <div>
+          <h2>{round.name}</h2>
+          <span className="mult">pronósticos revelados</span>
+        </div>
+      </div>
+      <div className="picks-scroll">
+        <table className="picks-table">
+          <thead>
+            <tr>
+              <th className="picks-match-col">Partido</th>
+              {players.map((p) => (
+                <th key={p.id} className="picks-player-col">{p.name}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {fx.map((m, i) => {
+              const id = matchId(round.id, i);
+              const res = admin.results?.[id];
+              const resolved = res && res.adv && res.h !== "" && res.a !== "";
+              return (
+                <tr key={id} className="picks-row">
+                  <td className="picks-match-cell">
+                    <div className="picks-teams">
+                      <span><Flag country={m[0]} size={13} /> {m[0]}</span>
+                      <span><Flag country={m[1]} size={13} /> {m[1]}</span>
+                    </div>
+                    {resolved && (
+                      <div className="picks-result">
+                        {res.h}–{res.a} · <Flag country={res.adv} size={11} />
+                      </div>
+                    )}
+                  </td>
+                  {players.map((p) => {
+                    const pred = p.preds?.[round.id]?.[id];
+                    const pa = pred ? predAdv(pred, m[0], m[1]) : null;
+                    const advOk = resolved && pa === res.adv;
+                    const scoreOk = resolved && pred &&
+                      Number(pred.h) === Number(res.h) &&
+                      Number(pred.a) === Number(res.a);
+                    const noPred = !pred || (pred.h === "" && pred.a === "");
+                    return (
+                      <td
+                        key={p.id}
+                        className={`picks-cell${scoreOk ? " score-ok" : advOk ? " adv-ok" : ""}`}
+                      >
+                        {noPred ? (
+                          <span className="picks-empty">—</span>
+                        ) : (
+                          <>
+                            <div className="picks-score">{pred.h}–{pred.a}</div>
+                            {pa && <div className="picks-adv"><Flag country={pa} size={13} /></div>}
+                          </>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="mini muted center">
+        🟢 Acertó quién pasa · 🟡 Además acertó el marcador exacto
+      </p>
     </div>
   );
 }
@@ -1668,6 +1765,31 @@ const CSS = `
 }
 
 /* ── Responsive móvil ────────────────────────────────────── */
+/* ── Picks ───────────────────────────────────────────────── */
+.picks-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line)}
+.picks-table{width:100%;border-collapse:collapse;font-size:12px;background:var(--panel)}
+.picks-table th{
+  background:var(--panel2);color:var(--muted);font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;padding:10px 8px;
+  border-bottom:2px solid var(--line);white-space:nowrap;
+}
+.picks-match-col{text-align:left;min-width:130px;position:sticky;left:0;background:var(--panel2);z-index:2}
+.picks-player-col{text-align:center;min-width:72px}
+.picks-row:not(:last-child) td{border-bottom:1px solid var(--line)}
+.picks-match-cell{
+  padding:10px 8px;position:sticky;left:0;
+  background:var(--panel);z-index:1;
+}
+.picks-teams{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600}
+.picks-teams span{display:flex;align-items:center;gap:5px}
+.picks-result{font-size:10px;color:var(--green);margin-top:4px;font-family:var(--mono);display:flex;align-items:center;gap:3px}
+.picks-cell{text-align:center;padding:10px 6px;transition:background .15s}
+.picks-cell.adv-ok{background:rgba(0,230,118,.1)}
+.picks-cell.score-ok{background:rgba(255,193,7,.15)}
+.picks-score{font-family:var(--mono);font-weight:800;font-size:13px}
+.picks-adv{margin-top:4px;display:flex;justify-content:center}
+.picks-empty{color:var(--muted);font-size:16px}
+
 @media(max-width:480px){
   .hdr h1{font-size:16px;letter-spacing:.08em}
   .ball{font-size:32px}
