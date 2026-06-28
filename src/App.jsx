@@ -126,11 +126,21 @@ const COLOR_PALETTE = [
   "#393B79", // azul marino oscuro
 ];
 
+let _colorMap = {};
+
+function computeColorMap(players) {
+  const map = { ...PLAYER_COLORS };
+  const used = new Set(Object.values(PLAYER_COLORS));
+  const avail = COLOR_PALETTE.filter(c => !used.has(c));
+  [...players]
+    .filter(p => !map[p.name])
+    .sort((a, b) => a.name.localeCompare(b.name, "es"))
+    .forEach((p, i) => { map[p.name] = avail[i % avail.length]; });
+  _colorMap = map;
+}
+
 function getPlayerColor(name) {
-  if (PLAYER_COLORS[name]) return PLAYER_COLORS[name];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-  return COLOR_PALETTE[Math.abs(h) % COLOR_PALETTE.length];
+  return _colorMap[name] || PLAYER_COLORS[name] || COLOR_PALETTE[0];
 }
 
 // ISO codes para flagcdn.com (funciona en Windows donde los emojis de bandera no se ven)
@@ -351,7 +361,7 @@ function MainApp() {
       supabase.from("v_players").select("*"),
       supabase.from("v_admin").select("*").single(),
     ]);
-    if (playersData) setPlayers(playersData);
+    if (playersData) { setPlayers(playersData); computeColorMap(playersData); }
     if (adminData) {
       setAdmin({
         openRound: adminData.open_round || "r32",
