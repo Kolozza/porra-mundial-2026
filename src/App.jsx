@@ -108,8 +108,11 @@ const R32 = [
 const TEAMS = [...new Set(R32.flat())].sort((a, b) => a.localeCompare(b, "es"));
 
 const PLAYER_COLORS = {
-  "Matias": "#74ACDF",  // albiceleste
-  "Niko":   "#ef4444",  // rojo
+  "Matias":  "#74ACDF",  // albiceleste
+  "Niko":    "#ef4444",  // rojo
+  "Gentjan": "#FFFFFF",  // blanco
+  "Alex":    "#ADFF2F",  // fluorescente
+  "Ray":     "#1F77B4",  // azul
 };
 
 const COLOR_PALETTE = [
