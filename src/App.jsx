@@ -518,14 +518,19 @@ function MainApp() {
 
       {loading ? (
         <div className="empty">Cargando porra…</div>
-      ) : tab === "jugar" ? (
-        <Jugar admin={admin} me={me} onSave={handleSave} />
-      ) : tab === "clasi" ? (
-        <Clasificacion standings={standings} admin={admin} meId={meId} />
-      ) : tab === "picks" ? (
-        <Picks admin={admin} standings={standings} meId={meId} />
       ) : (
-        <Reglas />
+        <>
+          <LiveMatchPanel admin={admin} players={players} />
+          {tab === "jugar" ? (
+            <Jugar admin={admin} me={me} onSave={handleSave} />
+          ) : tab === "clasi" ? (
+            <Clasificacion standings={standings} admin={admin} meId={meId} />
+          ) : tab === "picks" ? (
+            <Picks admin={admin} standings={standings} meId={meId} />
+          ) : (
+            <Reglas />
+          )}
+        </>
       )}
 
       {saving && <div className="saving">guardando…</div>}
@@ -956,6 +961,98 @@ function buildHistory(players, admin) {
     return { player, snap };
   });
   return { histories, events };
+}
+
+/* ---------------- Live Match Panel ---------------- */
+function LiveCard({ R, m, id, res, players }) {
+  const h = Number(res.h), a = Number(res.a);
+  const leading = h > a ? m[0] : a > h ? m[1] : null;
+
+  const stats = players
+    .map((p) => {
+      const pred = p.preds?.[R.id]?.[id];
+      if (!pred || pred.h === "" || pred.h == null || pred.a === "" || pred.a == null)
+        return { p, pred: null, pa: null, advStatus: "none", scoreOk: false, pts: 0 };
+      const pa = predAdv(pred, m[0], m[1]);
+      const advStatus =
+        leading === null ? "tied" : pa === leading ? "winning" : "losing";
+      const scoreOk = Number(pred.h) === h && Number(pred.a) === a;
+      const pts = ((advStatus === "winning" ? 3 : 0) + (scoreOk ? 2 : 0)) * R.mult;
+      return { p, pred, pa, advStatus, scoreOk, pts };
+    })
+    .sort((x, y) => y.pts - x.pts || x.p.name.localeCompare(y.p.name));
+
+  return (
+    <div className="live-card">
+      <div className="live-card-hdr">
+        <div className="live-hdr-top">
+          <span className="live-rnd">{R.name} · ×{R.mult}</span>
+          <span className="live-badge-pill">
+            <span className="live-dot" />
+            EN VIVO
+          </span>
+        </div>
+        <div className="live-scoreline">
+          <span className="live-tn">
+            <Flag country={m[0]} size={20} />
+            {m[0]}
+          </span>
+          <span className="live-score-big">
+            {res.h} – {res.a}
+          </span>
+          <span className="live-tn right">
+            {m[1]}
+            <Flag country={m[1]} size={20} />
+          </span>
+        </div>
+      </div>
+      <div className="live-picks-list">
+        {stats.map(({ p, pred, pa, advStatus, scoreOk, pts }) => (
+          <div
+            key={p.id}
+            className={`lp-row lps-${advStatus}${scoreOk ? " lps-exact" : ""}`}
+          >
+            <span className="lp-dot" style={{ background: getPlayerColor(p.name) }} />
+            <span className="lp-name">{p.name}</span>
+            <span className="lp-pred">
+              {pred
+                ? <>{pred.h}–{pred.a}{pa && <Flag country={pa} size={10} />}</>
+                : <span style={{ fontSize: 10, opacity: .5 }}>sin pick</span>
+              }
+            </span>
+            <span className="lp-pts">
+              {pts > 0 ? `+${pts}` : advStatus === "none" ? "—" : "0"}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p style={{ textAlign:"center", fontSize:9, color:"var(--muted)", padding:"4px 0 10px", letterSpacing:".04em", textTransform:"uppercase" }}>
+        Puntos provisionales · se confirman al terminar
+      </p>
+    </div>
+  );
+}
+
+function LiveMatchPanel({ admin, players }) {
+  const liveMatches = [];
+  for (const R of ROUNDS) {
+    const fx = fixturesFor(admin, R.id);
+    fx.forEach((m, i) => {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      if (res && res.live && res.adv == null) {
+        liveMatches.push({ R, m, id, res });
+      }
+    });
+  }
+  if (!liveMatches.length) return null;
+  return (
+    <div className="live-panel">
+      {liveMatches.map((lm) => (
+        <LiveCard key={lm.id} {...lm} players={players} />
+      ))}
+    </div>
+  );
 }
 
 function CarreraChart({ admin, players }) {
@@ -2235,6 +2332,56 @@ const CSS = `
 .picks-score{font-family:var(--mono);font-weight:800;font-size:13px}
 .picks-adv{margin-top:4px;display:flex;justify-content:center}
 .picks-empty{color:var(--muted);font-size:16px}
+
+/* ── Live match panel ─────────────────────────────────── */
+.live-panel{padding:10px 12px 4px;display:flex;flex-direction:column;gap:10px}
+.live-card{
+  background:linear-gradient(135deg,rgba(26,5,5,.97) 0%,rgba(14,4,4,.99) 100%);
+  border:1px solid rgba(248,113,113,.22);
+  border-top:3px solid var(--red);
+  border-radius:14px;overflow:hidden;
+}
+.live-card-hdr{padding:12px 14px 10px;border-bottom:1px solid rgba(248,113,113,.12)}
+.live-hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.live-rnd{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.live-badge-pill{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:900;color:var(--red);letter-spacing:.06em}
+.live-scoreline{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.live-tn{font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;flex:1}
+.live-tn.right{justify-content:flex-end}
+.live-score-big{
+  font-size:32px;font-weight:900;font-family:var(--mono);
+  color:#fff;letter-spacing:.04em;flex-shrink:0;
+  text-shadow:0 0 24px rgba(248,113,113,.55);
+}
+.live-picks-list{padding:4px 0}
+.lp-row{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;font-size:12px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  transition:background .15s;
+}
+.lp-row:last-child{border-bottom:0}
+.lps-winning{background:rgba(44,160,44,.09)}
+.lps-winning.lps-exact{background:rgba(252,211,77,.11)}
+.lps-losing{background:rgba(214,39,40,.06)}
+.lps-tied{background:rgba(107,114,128,.05)}
+.lps-none{opacity:.5}
+.lp-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.lp-name{flex:1;font-weight:700}
+.lp-pred{
+  display:flex;align-items:center;gap:4px;
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  min-width:58px;justify-content:flex-end;
+}
+.lps-winning .lp-pred{color:var(--txt)}
+.lps-winning.lps-exact .lp-pred{color:var(--gold)}
+.lp-pts{
+  font-weight:900;font-family:var(--mono);
+  min-width:28px;text-align:right;font-size:14px;
+}
+.lps-winning .lp-pts{color:#2CA02C}
+.lps-winning.lps-exact .lp-pts{color:var(--gold)}
+.lps-losing .lp-pts,.lps-tied .lp-pts,.lps-none .lp-pts{color:var(--muted)}
 
 @media(max-width:480px){
   .hdr h1{font-size:16px;letter-spacing:.08em}
