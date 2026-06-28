@@ -120,14 +120,19 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "No se pudo cargar admin state" });
   }
 
+  const LIVE_STATUSES = new Set(["IN_PLAY", "PAUSED", "HALFTIME", "LIVE"]);
+
   const r32Lookup  = buildR32Lookup();
   const newResults = { ...(adminData.results  || {}) };
   const newFixtures = { ...(adminData.fixtures || {}) };
   let updated = 0;
+  let live = 0;
 
-  // 3. Procesar solo partidos terminados
+  // 3. Procesar partidos terminados y en juego
   for (const match of matches) {
-    if (match.status !== "FINISHED") continue;
+    const isFinished = match.status === "FINISHED";
+    const isLive     = LIVE_STATUSES.has(match.status);
+    if (!isFinished && !isLive) continue;
 
     const roundId = STAGE_MAP[match.stage];
     if (!roundId) continue;
@@ -144,7 +149,6 @@ export default async function handler(req, res) {
       matchId = r32Lookup[`${homeSpa}|${awaySpa}`];
       if (!matchId) continue;
     } else {
-      // Para rondas posteriores: registrar cruce automáticamente si no existe
       const fixtures = [...(newFixtures[roundId] || [])];
       let idx = fixtures.findIndex(([h, a]) => h === homeSpa && a === awaySpa);
       if (idx === -1) {
@@ -155,15 +159,23 @@ export default async function handler(req, res) {
       matchId = `${roundId}-${idx}`;
     }
 
-    // Extraer marcador y clasificado
     const h = match.score.fullTime?.home ?? "";
     const a = match.score.fullTime?.away ?? "";
-    let adv = null;
-    if (match.score.winner === "HOME_TEAM") adv = homeSpa;
-    else if (match.score.winner === "AWAY_TEAM") adv = awaySpa;
 
-    newResults[matchId] = { h: String(h), a: String(a), adv };
-    updated++;
+    if (isFinished) {
+      let adv = null;
+      if (match.score.winner === "HOME_TEAM") adv = homeSpa;
+      else if (match.score.winner === "AWAY_TEAM") adv = awaySpa;
+      newResults[matchId] = { h: String(h), a: String(a), adv };
+      updated++;
+    } else {
+      // En juego: guardar marcador provisional sin adv, sin machacar un resultado final
+      const existing = newResults[matchId];
+      if (!existing?.adv && h !== "" && a !== "") {
+        newResults[matchId] = { h: String(h), a: String(a), adv: null, live: true };
+        live++;
+      }
+    }
   }
 
   // 4. Guardar en Supabase
@@ -175,6 +187,7 @@ export default async function handler(req, res) {
   return res.json({
     ok: !!saved,
     updated,
+    live,
     total: matches.filter((m) => m.status === "FINISHED").length,
   });
 }

@@ -1172,12 +1172,12 @@ function Picks({ admin, standings, meId }) {
             {indexedFx.map(({ m, i }) => {
               const id = matchId(round.id, i);
               const res = admin.results?.[id];
-              const resolved = res && res.adv && res.h !== "" && res.a !== "";
+              const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+              const isLive   = res && res.live && !resolved;
               const isNext = i === nextIdx;
-              // Ocultar picks ajenos en partidos futuros (no resueltos y no son el próximo)
-              const hideOthers = !resolved && !isNext;
+              const hideOthers = !resolved && !isLive && !isNext;
               return (
-                <tr key={id} className={`picks-row${!resolved && !isNext ? " picks-row-hidden" : ""}`}>
+                <tr key={id} className={`picks-row${hideOthers ? " picks-row-hidden" : ""}`}>
                   <td className="picks-match-cell">
                     <div className="picks-teams">
                       <span><Flag country={m[0]} size={13} /> {m[0]}</span>
@@ -1188,7 +1188,14 @@ function Picks({ admin, standings, meId }) {
                         {res.h}–{res.a} · <Flag country={res.adv} size={11} />
                       </div>
                     )}
-                    {isNext && !resolved && (
+                    {isLive && (
+                      <div className="live-score">
+                        <span className="live-dot" />
+                        <span className="live-label">EN VIVO</span>
+                        <span className="live-nums">{res.h}–{res.a}</span>
+                      </div>
+                    )}
+                    {isNext && !resolved && !isLive && (
                       <div className="picks-next-badge">Próximo</div>
                     )}
                   </td>
@@ -2067,6 +2074,16 @@ const CSS = `
 
 /* ── Responsive móvil ────────────────────────────────────── */
 /* ── Picks ───────────────────────────────────────────────── */
+.live-score{
+  display:flex;align-items:center;gap:5px;margin-top:4px;
+}
+.live-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0;
+  animation:livepulse 1.1s ease-in-out infinite;
+}
+@keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
+.live-label{font-size:9px;font-weight:900;color:var(--red);letter-spacing:.06em;text-transform:uppercase}
+.live-nums{font-size:11px;font-weight:900;color:var(--txt);font-family:var(--mono)}
 .picks-next-badge{
   display:inline-block;margin-top:4px;font-size:10px;font-weight:800;
   color:var(--gold);background:rgba(255,215,0,.1);
