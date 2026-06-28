@@ -1400,21 +1400,28 @@ const CSS = `
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 
 .porra{
-  --bg:#07080d;
-  --panel:#0f1520;
-  --panel2:#141e2e;
-  --line:#1c2d44;
-  --txt:#eef2ff;
-  --muted:#4a6080;
-  --green:#00e676;
-  --green-dim:#00b856;
+  --bg:#030b04;
+  --panel:#071009;
+  --panel2:#0a160b;
+  --line:#12281a;
+  --txt:#dff0e1;
+  --muted:#3d6647;
+  --green:#00ff7f;
+  --green-dim:#00c45f;
   --gold:#ffd700;
   --gold2:#ff9800;
-  --red:#ff1744;
-  --blue:#2979ff;
-  --purple:#7c3aed;
+  --red:#ff3355;
+  --blue:#33aaff;
   --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
   background:var(--bg);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 64px,
+      rgba(0,255,100,.018) 64px,
+      rgba(0,255,100,.018) 128px
+    );
   color:var(--txt);
   min-height:100vh;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
@@ -1428,17 +1435,24 @@ const CSS = `
   position:relative;
   padding:0 0 14px;
   background:
-    linear-gradient(180deg,#1a0a2e 0%,#0a1535 45%,#060c1a 100%);
-  border-bottom:3px solid transparent;
-  border-image:linear-gradient(90deg,var(--purple),var(--green),var(--gold)) 1;
+    radial-gradient(ellipse 120% 60% at 50% -10%, #0d3318 0%, #050f07 55%, #020804 100%);
+  border-bottom:2px solid var(--green-dim);
+  box-shadow:0 2px 30px rgba(0,255,127,.08);
   overflow:hidden;
   display:flex;flex-direction:column;gap:0;
 }
 .hdr::after{
-  content:'⬡';
-  position:absolute;right:-40px;top:-60px;
-  font-size:260px;opacity:.025;color:#fff;
-  pointer-events:none;line-height:1;
+  content:'';
+  position:absolute;inset:0;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 40px,
+      rgba(0,255,100,.015) 40px,
+      rgba(0,255,100,.015) 80px
+    );
+  pointer-events:none;
 }
 
 /* Scrolling flag banner */
@@ -1502,7 +1516,7 @@ const CSS = `
 /* ── Tabs ────────────────────────────────────────────────── */
 .tabs{
   display:flex;gap:6px;padding:10px 12px;
-  background:rgba(5,9,15,.95);
+  background:rgba(3,11,4,.96);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   border-bottom:1px solid var(--line);
   position:sticky;top:0;z-index:10;
@@ -1514,9 +1528,9 @@ const CSS = `
   transition:all .15s;
 }
 .tab.on{
-  background:linear-gradient(135deg,#0a2a0a,#112211);
+  background:rgba(0,255,127,.1);
   color:var(--green);
-  box-shadow:0 0 0 1px var(--green-dim);
+  box-shadow:0 0 0 1px rgba(0,255,127,.25);
 }
 
 /* ── Pane / Empty ────────────────────────────────────────── */
@@ -1583,8 +1597,9 @@ const CSS = `
 /* ── Partidos ────────────────────────────────────────────── */
 .matches{display:flex;flex-direction:column;gap:10px}
 .match{
-  background:linear-gradient(135deg,#0f1a2a 0%,#0c1220 100%);
+  background:linear-gradient(135deg,#071209 0%,#050e07 100%);
   border:1px solid var(--line);
+  border-left:3px solid var(--green-dim);
   border-radius:14px;
   padding:14px 12px;
   display:grid;
@@ -1595,7 +1610,7 @@ const CSS = `
 .match::before{
   content:'⚽';
   position:absolute;right:10px;bottom:-8px;
-  font-size:48px;opacity:.04;pointer-events:none;
+  font-size:48px;opacity:.035;pointer-events:none;
 }
 .m-team{line-height:1.3}
 .m-team.left{
@@ -1722,7 +1737,9 @@ const CSS = `
 
 /* ── Cards ───────────────────────────────────────────────── */
 .card{
-  background:var(--panel);border:1px solid var(--line);
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-top:1px solid rgba(0,255,127,.12);
   border-radius:14px;padding:16px;
 }
 .card h3{
@@ -1806,7 +1823,7 @@ const CSS = `
     position:fixed;bottom:0;left:0;right:0;top:auto;
     border-top:1px solid rgba(255,255,255,.06);border-bottom:none;
     padding:8px 10px 14px;
-    background:rgba(7,8,13,.97);
+    background:rgba(3,11,4,.97);
     backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   }
   .porra{padding-bottom:80px}
