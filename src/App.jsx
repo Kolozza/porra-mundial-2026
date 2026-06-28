@@ -1162,8 +1162,10 @@ function Picks({ admin, standings, meId }) {
                   key={p.id}
                   className={`picks-player-col${p.id === meId ? " picks-me-col" : ""}`}
                 >
-                  <span className="player-dot" style={{ background: getPlayerColor(p.name) }} />
-                  {p.id === meId ? "Yo" : p.name}
+                  <div className="picks-col-head">
+                    <span className="player-dot" style={{ background: getPlayerColor(p.name) }} />
+                    <span className="picks-col-name">{p.id === meId ? "Yo" : p.name}</span>
+                  </div>
                 </th>
               ))}
             </tr>
@@ -2083,7 +2085,9 @@ const CSS = `
   border-bottom:2px solid var(--line);white-space:nowrap;
 }
 .picks-match-col{text-align:left;min-width:130px;position:sticky;left:0;background:var(--panel2);z-index:2}
-.picks-player-col{text-align:center;min-width:72px}
+.picks-player-col{text-align:center;min-width:34px;vertical-align:bottom;padding:0 2px 6px}
+.picks-col-head{display:flex;flex-direction:column;align-items:center;gap:5px}
+.picks-col-name{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
 .picks-row:not(:last-child) td{border-bottom:1px solid var(--line)}
 .picks-match-cell{
   padding:10px 8px;position:sticky;left:0;
