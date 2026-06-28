@@ -926,8 +926,6 @@ function maxRemaining(player, admin) {
     });
     if (canPleno && anyUnresolved) max += PLENO[R.id];
   }
-  if (!admin.champion) max += BONUS.champion;
-  if (!admin.pichichi) max += BONUS.pichichi;
   return max;
 }
 
