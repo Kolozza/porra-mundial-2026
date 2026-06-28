@@ -853,7 +853,6 @@ function Clasificacion({ standings, admin, meId }) {
               <span className="rank">{medals[i] || i + 1}</span>
               <span className="pname">
                 {p.name}
-                {p.champion && p.id === meId && <Flag country={p.champion} size={18} />}
                 {admin.champion && p.champion === admin.champion && (
                   <span className="champ-won">★ campeón</span>
                 )}
