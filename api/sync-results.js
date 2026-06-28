@@ -159,20 +159,27 @@ export default async function handler(req, res) {
       matchId = `${roundId}-${idx}`;
     }
 
-    const h = match.score.fullTime?.home ?? "";
-    const a = match.score.fullTime?.away ?? "";
+    // fullTime = marcador a los 90'. extraTime = marcador tras prórroga (acumulado).
+    // Guardamos siempre el marcador a 90' en h/a para el bonus de resultado exacto.
+    const duration = match.duration; // "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT"
+    const ft = match.score.fullTime;
+    const h90 = ft?.home ?? "";
+    const a90 = ft?.away ?? "";
 
     if (isFinished) {
       let adv = null;
       if (match.score.winner === "HOME_TEAM") adv = homeSpa;
       else if (match.score.winner === "AWAY_TEAM") adv = awaySpa;
-      newResults[matchId] = { h: String(h), a: String(a), adv };
+
+      // h/a = marcador 90' (para +2 exacto). adv = ganador final (para +3 quién pasa).
+      // Si hubo prórroga o penaltis, ambos datos son independientes y correctos.
+      newResults[matchId] = { h: String(h90), a: String(a90), adv, duration };
       updated++;
     } else {
-      // En juego: guardar marcador provisional sin adv, sin machacar un resultado final
+      // En juego: marcador provisional sin adv, sin machacar un resultado final
       const existing = newResults[matchId];
-      if (!existing?.adv && h !== "" && a !== "") {
-        newResults[matchId] = { h: String(h), a: String(a), adv: null, live: true };
+      if (!existing?.adv && h90 !== "" && a90 !== "") {
+        newResults[matchId] = { h: String(h90), a: String(a90), adv: null, live: true, duration };
         live++;
       }
     }
