@@ -107,6 +107,17 @@ const R32 = [
 
 const TEAMS = [...new Set(R32.flat())].sort((a, b) => a.localeCompare(b, "es"));
 
+// Orden cronológico de los partidos de r32 (índices del array R32)
+// No modifica R32 para preservar los IDs de predicciones guardadas
+const R32_DATE_ORDER = [0, 2, 3, 1, 5, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+const R32_DATES = {
+  0:"28 Jun", 2:"29 Jun", 3:"29 Jun", 1:"29 Jun",
+  5:"30 Jun", 4:"30 Jun", 6:"30 Jun",
+  7:"1 Jul",  8:"1 Jul",  9:"1 Jul",
+  10:"2 Jul", 11:"2 Jul", 12:"2 Jul",
+  13:"3 Jul", 14:"3 Jul", 15:"3 Jul",
+};
+
 const PLAYER_COLORS = {
   "Matias":  "#74ACDF",  // albiceleste
   "Niko":    "#ef4444",  // rojo
@@ -1166,14 +1177,18 @@ function Picks({ admin, standings, meId }) {
     selected.length === 0 ? others : others.filter((p) => selected.includes(p.id));
   const visiblePlayers = [...(me ? [me] : []), ...visibleOthers];
 
-  // Índice del próximo partido sin resultado
-  const nextIdx = fx.findIndex((_, i) => {
-    const res = admin.results?.[matchId(round.id, i)];
-    return !(res && res.adv && res.h !== "" && res.a !== "");
-  });
+  // Orden de visualización: cronológico para r32, original para el resto
+  const displayOrder = round.id === "r32"
+    ? R32_DATE_ORDER.filter(idx => idx < fx.length)
+    : fx.map((_, i) => i);
 
-  // Todos los partidos: resueltos siempre visibles, el próximo visible, el resto ocultos
-  const indexedFx = fx.map((m, i) => ({ m, i }));
+  // Primer partido sin resultado en orden cronológico
+  const nextI = displayOrder.find(origIdx => {
+    const res = admin.results?.[matchId(round.id, origIdx)];
+    return !(res && res.adv && res.h !== "" && res.a !== "");
+  }) ?? -1;
+
+  const indexedFx = displayOrder.map(origIdx => ({ m: fx[origIdx], i: origIdx }));
 
   return (
     <div className="pane">
@@ -1229,7 +1244,7 @@ function Picks({ admin, standings, meId }) {
               const res = admin.results?.[id];
               const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
               const isLive   = res && res.live && !resolved;
-              const isNext = i === nextIdx;
+              const isNext = i === nextI;
               const hideOthers = !resolved && !isLive && !isNext;
 
               // Consenso: cuántos jugadores apostaron por cada equipo
@@ -1249,6 +1264,9 @@ function Picks({ admin, standings, meId }) {
               return (
                 <tr key={id} className={`picks-row${hideOthers ? " picks-row-hidden" : ""}`}>
                   <td className="picks-match-cell">
+                    {round.id === "r32" && R32_DATES[i] && (
+                      <div className="match-date">{R32_DATES[i]}</div>
+                    )}
                     <div className="picks-teams">
                       <span><Flag country={m[0]} size={13} /> {m[0]}</span>
                       <span><Flag country={m[1]} size={13} /> {m[1]}</span>
@@ -2205,6 +2223,7 @@ const CSS = `
   padding:10px 8px;position:sticky;left:0;
   background:var(--panel);z-index:1;
 }
+.match-date{font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;opacity:.7}
 .picks-teams{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600}
 .picks-teams span{display:flex;align-items:center;gap:5px}
 .picks-result{font-size:10px;color:var(--green);margin-top:4px;font-family:var(--mono);display:flex;align-items:center;gap:3px}
