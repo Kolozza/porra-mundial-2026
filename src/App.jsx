@@ -107,6 +107,23 @@ const R32 = [
 
 const TEAMS = [...new Set(R32.flat())].sort((a, b) => a.localeCompare(b, "es"));
 
+const PLAYER_COLORS = {
+  "Matias": "#74ACDF",  // albiceleste
+  "Niko":   "#ef4444",  // rojo
+};
+
+const COLOR_PALETTE = [
+  "#f97316","#a855f7","#eab308","#14b8a6",
+  "#ec4899","#84cc16","#06b6d4","#6366f1",
+];
+
+function getPlayerColor(name) {
+  if (PLAYER_COLORS[name]) return PLAYER_COLORS[name];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return COLOR_PALETTE[Math.abs(h) % COLOR_PALETTE.length];
+}
+
 // ISO codes para flagcdn.com (funciona en Windows donde los emojis de bandera no se ven)
 const COUNTRY_CODES = {
   "Alemania":"de","Argelia":"dz","Argentina":"ar","Australia":"au",
@@ -852,6 +869,7 @@ function Clasificacion({ standings, admin, meId }) {
             >
               <span className="rank">{medals[i] || i + 1}</span>
               <span className="pname">
+                <span className="player-dot" style={{ background: getPlayerColor(p.name) }} />
                 {p.name}
                 {admin.champion && p.champion === admin.champion && (
                   <span className="champ-won">★ campeón</span>
@@ -963,6 +981,7 @@ function Picks({ admin, standings, meId }) {
                   key={p.id}
                   className={`picks-player-col${p.id === meId ? " picks-me-col" : ""}`}
                 >
+                  <span className="player-dot" style={{ background: getPlayerColor(p.name) }} />
                   {p.id === meId ? "Yo" : p.name}
                 </th>
               ))}
@@ -1764,6 +1783,7 @@ const CSS = `
 .row.me{border-color:rgba(200,220,200,.4);box-shadow:0 0 0 1px rgba(200,220,200,.1)}
 .rank{width:32px;text-align:center;font-weight:900;font-size:20px;color:var(--muted)}
 .pname{flex:1;font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.player-dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0;vertical-align:middle}
 .champ-won{
   font-size:10px;color:var(--gold);
   background:linear-gradient(135deg,rgba(255,215,0,.12),rgba(255,152,0,.08));
