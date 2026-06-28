@@ -13,41 +13,41 @@ export default function handler() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
           backgroundColor: "#0b1e0d",
           fontFamily: "system-ui, sans-serif",
         },
       },
-      React.createElement(
-        "div",
-        { style: { fontSize: 96, marginBottom: 24 } },
-        "\u26BD"
-      ),
-      React.createElement(
-        "div",
-        {
-          style: {
-            fontSize: 80,
-            fontWeight: 900,
-            color: "#ffffff",
-            letterSpacing: "0.06em",
-          },
-        },
-        "LA PORRA"
-      ),
+      // Foto arriba
+      React.createElement("img", {
+        src: "https://porra-mundial-2026-seven-tau.vercel.app/og-image.jpg",
+        width: 1200,
+        height: 460,
+        style: { objectFit: "cover", objectPosition: "center 10%" },
+      }),
+      // Texto abajo
       React.createElement(
         "div",
         {
           style: {
-            fontSize: 52,
-            fontWeight: 700,
-            color: "#8aab8e",
-            letterSpacing: "0.12em",
-            marginTop: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 170,
+            backgroundColor: "#0b1e0d",
           },
         },
-        "MUNDIAL 2026"
+        React.createElement(
+          "div",
+          {
+            style: {
+              fontSize: 58,
+              fontWeight: 900,
+              color: "#ffffff",
+              letterSpacing: "0.06em",
+            },
+          },
+          "LA PORRA \u00B7 MUNDIAL 2026"
+        )
       )
     ),
     { width: 1200, height: 630 }
