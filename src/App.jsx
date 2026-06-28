@@ -238,6 +238,51 @@ function scorePlayer(player, admin) {
 /* ================================================================
    Routing: / → MainApp, /admin → AdminPage
 ================================================================ */
+function PitchLines() {
+  return (
+    <svg
+      style={{
+        position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",
+        width:"100%",maxWidth:680,height:"100vh",
+        pointerEvents:"none",zIndex:0,overflow:"visible",
+      }}
+      viewBox="0 0 680 900"
+      preserveAspectRatio="xMidYMid slice"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Borde del campo */}
+      <rect x="24" y="24" width="632" height="852" fill="none" stroke="white" strokeWidth="1.5" opacity=".07"/>
+      {/* Línea central */}
+      <line x1="24" y1="450" x2="656" y2="450" stroke="white" strokeWidth="1.5" opacity=".07"/>
+      {/* Círculo central */}
+      <circle cx="340" cy="450" r="88" fill="none" stroke="white" strokeWidth="1.5" opacity=".07"/>
+      {/* Punto central */}
+      <circle cx="340" cy="450" r="3.5" fill="white" opacity=".1"/>
+      {/* Área grande superior */}
+      <rect x="148" y="24" width="384" height="148" fill="none" stroke="white" strokeWidth="1.5" opacity=".06"/>
+      {/* Área pequeña superior */}
+      <rect x="248" y="24" width="184" height="56" fill="none" stroke="white" strokeWidth="1.5" opacity=".055"/>
+      {/* Punto penalti superior */}
+      <circle cx="340" cy="136" r="3" fill="white" opacity=".08"/>
+      {/* Arco área superior */}
+      <path d="M 248 172 A 88 88 0 0 1 432 172" fill="none" stroke="white" strokeWidth="1.5" opacity=".055"/>
+      {/* Área grande inferior */}
+      <rect x="148" y="728" width="384" height="148" fill="none" stroke="white" strokeWidth="1.5" opacity=".06"/>
+      {/* Área pequeña inferior */}
+      <rect x="248" y="820" width="184" height="56" fill="none" stroke="white" strokeWidth="1.5" opacity=".055"/>
+      {/* Punto penalti inferior */}
+      <circle cx="340" cy="764" r="3" fill="white" opacity=".08"/>
+      {/* Arco área inferior */}
+      <path d="M 248 728 A 88 88 0 0 0 432 728" fill="none" stroke="white" strokeWidth="1.5" opacity=".055"/>
+      {/* Esquinas */}
+      <path d="M 24 44 A 20 20 0 0 1 44 24" fill="none" stroke="white" strokeWidth="1.5" opacity=".06"/>
+      <path d="M 636 24 A 20 20 0 0 1 656 44" fill="none" stroke="white" strokeWidth="1.5" opacity=".06"/>
+      <path d="M 656 856 A 20 20 0 0 1 636 876" fill="none" stroke="white" strokeWidth="1.5" opacity=".06"/>
+      <path d="M 44 876 A 20 20 0 0 1 24 856" fill="none" stroke="white" strokeWidth="1.5" opacity=".06"/>
+    </svg>
+  );
+}
+
 export default function Root() {
   if (window.location.pathname === "/admin") return <AdminPage />;
   return <MainApp />;
@@ -384,6 +429,7 @@ function MainApp() {
   return (
     <div className="porra">
       <style>{CSS}</style>
+      <PitchLines />
 
       <header className="hdr">
         <div className="flag-strip">
@@ -1400,58 +1446,43 @@ const CSS = `
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 
 .porra{
-  --bg:#030b04;
-  --panel:#071009;
-  --panel2:#0a160b;
-  --line:#12281a;
-  --txt:#dff0e1;
-  --muted:#3d6647;
-  --green:#00ff7f;
-  --green-dim:#00c45f;
-  --gold:#ffd700;
-  --gold2:#ff9800;
-  --red:#ff3355;
-  --blue:#33aaff;
+  --bg:transparent;
+  --panel:rgba(4,14,5,.82);
+  --panel2:rgba(6,20,7,.88);
+  --line:rgba(80,160,80,.18);
+  --txt:#e8f5e9;
+  --muted:#5a8a62;
+  --green:#4ade80;
+  --green-dim:#22c55e;
+  --gold:#fcd34d;
+  --gold2:#f59e0b;
+  --red:#f87171;
+  --blue:#60a5fa;
   --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
-  background:var(--bg);
-  background-image:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 64px,
-      rgba(0,255,100,.018) 64px,
-      rgba(0,255,100,.018) 128px
-    );
+  background:transparent;
   color:var(--txt);
   min-height:100vh;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
   max-width:680px;
   margin:0 auto;
   padding:0 0 72px;
+  position:relative;
+  z-index:1;
 }
 
 /* ── Header ─────────────────────────────────────────────── */
 .hdr{
   position:relative;
   padding:0 0 14px;
-  background:
-    radial-gradient(ellipse 120% 60% at 50% -10%, #0d3318 0%, #050f07 55%, #020804 100%);
-  border-bottom:2px solid var(--green-dim);
-  box-shadow:0 2px 30px rgba(0,255,127,.08);
+  background:rgba(3,12,4,.9);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(74,222,128,.2);
   overflow:hidden;
   display:flex;flex-direction:column;gap:0;
 }
 .hdr::after{
-  content:'';
-  position:absolute;inset:0;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 40px,
-      rgba(0,255,100,.015) 40px,
-      rgba(0,255,100,.015) 80px
-    );
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(74,222,128,.04) 0%,transparent 100%);
   pointer-events:none;
 }
 
@@ -1516,9 +1547,9 @@ const CSS = `
 /* ── Tabs ────────────────────────────────────────────────── */
 .tabs{
   display:flex;gap:6px;padding:10px 12px;
-  background:rgba(3,11,4,.96);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--line);
+  background:rgba(3,12,4,.92);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(74,222,128,.12);
   position:sticky;top:0;z-index:10;
 }
 .tab{
@@ -1738,8 +1769,8 @@ const CSS = `
 /* ── Cards ───────────────────────────────────────────────── */
 .card{
   background:var(--panel);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   border:1px solid var(--line);
-  border-top:1px solid rgba(0,255,127,.12);
   border-radius:14px;padding:16px;
 }
 .card h3{
@@ -1823,7 +1854,7 @@ const CSS = `
     position:fixed;bottom:0;left:0;right:0;top:auto;
     border-top:1px solid rgba(255,255,255,.06);border-bottom:none;
     padding:8px 10px 14px;
-    background:rgba(3,11,4,.97);
+    background:rgba(3,12,4,.96);
     backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   }
   .porra{padding-bottom:80px}
