@@ -473,7 +473,7 @@ function MainApp() {
       ) : tab === "clasi" ? (
         <Clasificacion standings={standings} admin={admin} meId={meId} />
       ) : tab === "picks" ? (
-        <Picks admin={admin} standings={standings} />
+        <Picks admin={admin} standings={standings} meId={meId} />
       ) : (
         <Reglas />
       )}
@@ -890,10 +890,11 @@ function Clasificacion({ standings, admin, meId }) {
 }
 
 /* ---------------- Picks (pronósticos revelados) ---------------- */
-function Picks({ admin, standings }) {
+function Picks({ admin, standings, meId }) {
   const round = ROUNDS.find((r) => r.id === admin.openRound) || ROUNDS[0];
   const locked = !!admin.locked?.[round.id];
   const fx = fixturesFor(admin, round.id);
+  const [selected, setSelected] = useState([]);
 
   if (!locked) {
     return (
@@ -908,7 +909,18 @@ function Picks({ admin, standings }) {
     return <div className="empty">No hay cruces cargados para esta ronda.</div>;
   }
 
-  const players = standings.map((s) => s.p);
+  const allPlayers = standings.map((s) => s.p);
+  const me = allPlayers.find((p) => p.id === meId) || null;
+  const others = allPlayers.filter((p) => p.id !== meId);
+
+  const togglePlayer = (id) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+
+  const visibleOthers =
+    selected.length === 0 ? others : others.filter((p) => selected.includes(p.id));
+  const visiblePlayers = [...(me ? [me] : []), ...visibleOthers];
 
   return (
     <div className="pane">
@@ -918,13 +930,42 @@ function Picks({ admin, standings }) {
           <span className="mult">pronósticos revelados</span>
         </div>
       </div>
+
+      {others.length > 0 && (
+        <div>
+          <p className="mini muted" style={{ marginBottom: 8 }}>Comparar con:</p>
+          <div className="chips" style={{ flexWrap: "wrap" }}>
+            <button
+              className={selected.length === 0 ? "chip on" : "chip"}
+              onClick={() => setSelected([])}
+            >
+              Todos
+            </button>
+            {others.map((p) => (
+              <button
+                key={p.id}
+                className={selected.includes(p.id) ? "chip on" : "chip"}
+                onClick={() => togglePlayer(p.id)}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="picks-scroll">
         <table className="picks-table">
           <thead>
             <tr>
               <th className="picks-match-col">Partido</th>
-              {players.map((p) => (
-                <th key={p.id} className="picks-player-col">{p.name}</th>
+              {visiblePlayers.map((p) => (
+                <th
+                  key={p.id}
+                  className={`picks-player-col${p.id === meId ? " picks-me-col" : ""}`}
+                >
+                  {p.id === meId ? "Yo" : p.name}
+                </th>
               ))}
             </tr>
           </thead>
@@ -946,7 +987,7 @@ function Picks({ admin, standings }) {
                       </div>
                     )}
                   </td>
-                  {players.map((p) => {
+                  {visiblePlayers.map((p) => {
                     const pred = p.preds?.[round.id]?.[id];
                     const pa = pred ? predAdv(pred, m[0], m[1]) : null;
                     const advOk = resolved && pa === res.adv;
@@ -957,7 +998,7 @@ function Picks({ admin, standings }) {
                     return (
                       <td
                         key={p.id}
-                        className={`picks-cell${scoreOk ? " score-ok" : advOk ? " adv-ok" : ""}`}
+                        className={`picks-cell${p.id === meId ? " picks-me-cell" : ""}${scoreOk ? " score-ok" : advOk ? " adv-ok" : ""}`}
                       >
                         {noPred ? (
                           <span className="picks-empty">—</span>
@@ -1836,6 +1877,8 @@ const CSS = `
 .picks-cell{text-align:center;padding:10px 6px;transition:background .15s}
 .picks-cell.adv-ok{background:rgba(0,230,118,.1)}
 .picks-cell.score-ok{background:rgba(255,193,7,.15)}
+.picks-me-col{color:var(--green);background:rgba(255,255,255,.04)}
+.picks-me-cell{background:rgba(255,255,255,.03);border-left:2px solid rgba(200,220,200,.15);border-right:2px solid rgba(200,220,200,.15)}
 .picks-score{font-family:var(--mono);font-weight:800;font-size:13px}
 .picks-adv{margin-top:4px;display:flex;justify-content:center}
 .picks-empty{color:var(--muted);font-size:16px}
