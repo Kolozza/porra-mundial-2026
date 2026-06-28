@@ -860,12 +860,157 @@ function PichichiPicker({ value, disabled, onChange }) {
   );
 }
 
+/* ---------------- Carrera (chart) ---------------- */
+function buildHistory(players, admin) {
+  const events = [];
+  for (const R of ROUNDS) {
+    const fx = fixturesFor(admin, R.id);
+    fx.forEach((m, i) => {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      if (res && res.adv != null && res.h !== "" && res.a !== "")
+        events.push({ roundId: R.id, id, m, res, mult: R.mult });
+    });
+  }
+  const histories = players.map(player => {
+    let pts = 0;
+    const snap = [0];
+    events.forEach(ev => {
+      const pred = player.preds?.[ev.roundId]?.[ev.id];
+      let p = 0;
+      if (pred && (pred.h !== "" || pred.a !== "")) {
+        const pa = predAdv(pred, ev.m[0], ev.m[1]);
+        if (pa === ev.res.adv) p += 3;
+        if (Number(pred.h) === Number(ev.res.h) && Number(pred.a) === Number(ev.res.a)) p += 2;
+        p *= ev.mult;
+      }
+      pts += p;
+      snap.push(pts);
+    });
+    return { player, snap };
+  });
+  return { histories, events };
+}
+
+function CarreraChart({ admin, players }) {
+  const { histories, events } = buildHistory(players, admin);
+
+  if (!events.length)
+    return (
+      <p className="mini muted center" style={{ padding: "16px 0 4px" }}>
+        La carrera empieza con el primer resultado.
+      </p>
+    );
+
+  const W = 580, H = 240;
+  const pad = { t: 18, r: 82, b: 26, l: 30 };
+  const iW = W - pad.l - pad.r;
+  const iH = H - pad.t - pad.b;
+  const steps = events.length;
+  const maxPts = Math.max(...histories.map(h => h.snap[h.snap.length - 1]), 10);
+
+  const xs = i => pad.l + (i / steps) * iW;
+  const ys = v => pad.t + iH - (v / maxPts) * iH;
+
+  // Round start markers
+  const boundaries = [];
+  let curRound = null;
+  events.forEach((ev, i) => {
+    if (ev.roundId !== curRound) { boundaries.push({ i, roundId: ev.roundId }); curRound = ev.roundId; }
+  });
+
+  // Y grid ticks
+  const tickStep = maxPts <= 15 ? 5 : maxPts <= 40 ? 10 : maxPts <= 80 ? 20 : 50;
+  const ticks = [];
+  for (let v = 0; v <= maxPts; v += tickStep) ticks.push(v);
+
+  // Sort histories by final score desc to layer lower scores above higher (draw on top)
+  const sorted = [...histories].sort((a, b) => a.snap[a.snap.length - 1] - b.snap[b.snap.length - 1]);
+
+  // Offset overlapping labels
+  const labelPositions = [];
+  const labelsSorted = [...histories].sort((a, b) => b.snap[b.snap.length - 1] - a.snap[a.snap.length - 1]);
+  labelsSorted.forEach((h, idx) => {
+    const raw = ys(h.snap[h.snap.length - 1]);
+    const prev = labelPositions[idx - 1];
+    labelPositions.push(prev != null && prev - raw < 13 ? prev - 13 : raw);
+  });
+  const labelMap = {};
+  labelsSorted.forEach((h, idx) => { labelMap[h.player.id] = labelPositions[idx]; });
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
+      <defs>
+        <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#031a06" />
+          <stop offset="100%" stopColor="#010c03" />
+        </linearGradient>
+      </defs>
+
+      {/* Field */}
+      <rect x={pad.l} y={pad.t} width={iW} height={iH} fill="url(#cg)" rx="3" />
+      {Array.from({ length: 7 }).map((_, k) => (
+        <rect key={k} x={pad.l + k * (iW / 7)} y={pad.t} width={iW / 14} height={iH}
+          fill="rgba(255,255,255,0.013)" />
+      ))}
+
+      {/* Y grid */}
+      {ticks.map(v => (
+        <g key={v}>
+          <line x1={pad.l} y1={ys(v)} x2={pad.l + iW} y2={ys(v)}
+            stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+          <text x={pad.l - 4} y={ys(v) + 3.5} textAnchor="end" fontSize="9"
+            fill="rgba(255,255,255,0.3)">{v}</text>
+        </g>
+      ))}
+
+      {/* Round boundaries */}
+      {boundaries.map(({ i, roundId }) => {
+        const x = xs(i);
+        const R = ROUNDS.find(r => r.id === roundId);
+        return (
+          <g key={roundId}>
+            <line x1={x} y1={pad.t} x2={x} y2={pad.t + iH}
+              stroke="rgba(255,255,255,0.13)" strokeWidth="1" strokeDasharray="3,3" />
+            <text x={x + 3} y={pad.t + iH + 16} fontSize="9"
+              fill="rgba(255,255,255,0.4)">{R?.short}</text>
+          </g>
+        );
+      })}
+
+      {/* Lines (sorted: winner on top) */}
+      {sorted.map(({ player, snap }) => {
+        const color = getPlayerColor(player.name);
+        const pts = snap.map((v, i) => `${xs(i)},${ys(v)}`).join(" ");
+        const lx = xs(snap.length - 1);
+        const ly = labelMap[player.id];
+        const dotY = ys(snap[snap.length - 1]);
+        return (
+          <g key={player.id}>
+            <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5"
+              strokeLinejoin="round" strokeLinecap="round"
+              style={{ filter: `drop-shadow(0 0 3px ${color}80)` }} />
+            <line x1={lx} y1={dotY} x2={lx + 6} y2={ly}
+              stroke={color} strokeWidth="1" opacity="0.5" />
+            <circle cx={lx} cy={dotY} r="4" fill={color}
+              style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
+            <text x={lx + 9} y={ly + 4} fontSize="10.5" fill={color} fontWeight="800">
+              {player.name}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 /* ---------------- Clasificación ---------------- */
 function Clasificacion({ standings, admin, meId }) {
   const [open, setOpen] = useState(null);
   if (standings.length === 0)
     return <div className="empty">Aún no hay jugadores. ¡Que entren los amigos!</div>;
   const medals = ["🥇", "🥈", "🥉"];
+  const players = standings.map(s => s.p);
   return (
     <div className="pane">
       <div className="board">
@@ -910,6 +1055,11 @@ function Clasificacion({ standings, admin, meId }) {
         ))}
       </div>
       <p className="mini muted center">Toca un nombre para ver el desglose por ronda.</p>
+
+      <section className="card" style={{ padding: "14px 8px 10px" }}>
+        <h3>Carrera de puntos</h3>
+        <CarreraChart admin={admin} players={players} />
+      </section>
     </div>
   );
 }
