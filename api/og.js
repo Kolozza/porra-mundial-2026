@@ -10,131 +10,153 @@ export default function handler() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#0b1e0d",
-          backgroundImage:
-            "repeating-linear-gradient(180deg, rgba(255,255,255,.03) 0px, rgba(255,255,255,.03) 56px, rgba(0,0,0,.10) 56px, rgba(0,0,0,.10) 112px)",
           fontFamily: "system-ui, sans-serif",
-          position: "relative",
-          overflow: "hidden",
+          backgroundColor: "#0b1e0d",
         },
       },
-      // Círculo central decorativo
-      React.createElement("div", {
-        style: {
-          position: "absolute",
-          width: 420,
-          height: 420,
-          borderRadius: "50%",
-          border: "2px solid rgba(255,255,255,.05)",
-        },
-      }),
-      React.createElement("div", {
-        style: {
-          position: "absolute",
-          width: "88%",
-          height: 2,
-          backgroundColor: "rgba(255,255,255,.05)",
-        },
-      }),
-      // Contenido principal
+      // Lado izquierdo — texto
       React.createElement(
         "div",
         {
           style: {
+            flex: 1,
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
-            gap: 0,
-            zIndex: 1,
+            alignItems: "flex-start",
+            justifyContent: "center",
+            padding: "52px 60px",
+            background:
+              "linear-gradient(135deg, #0b1e0d 0%, #0d2310 60%, #091a0b 100%)",
+            position: "relative",
           },
         },
+        // Líneas de campo decorativas
+        React.createElement("div", {
+          style: {
+            position: "absolute",
+            width: 260,
+            height: 260,
+            borderRadius: "50%",
+            border: "1.5px solid rgba(255,255,255,.05)",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+          },
+        }),
+        React.createElement("div", {
+          style: {
+            position: "absolute",
+            width: "100%",
+            height: "1.5px",
+            backgroundColor: "rgba(255,255,255,.04)",
+            top: "50%",
+          },
+        }),
         // Pelota
         React.createElement(
           "div",
-          { style: { fontSize: 96, lineHeight: 1, marginBottom: 16 } },
+          { style: { fontSize: 68, lineHeight: 1, marginBottom: 20, zIndex: 1 } },
           "\u26BD"
         ),
-        // Titulo
+        // LA PORRA
         React.createElement(
           "div",
           {
             style: {
-              fontSize: 80,
+              fontSize: 66,
               fontWeight: 900,
               color: "#ffffff",
-              letterSpacing: "-0.02em",
-              textAlign: "center",
               lineHeight: 1,
+              letterSpacing: "-0.02em",
+              zIndex: 1,
             },
           },
           "LA PORRA"
         ),
-        // Subtitulo
+        // MUNDIAL 2026
         React.createElement(
           "div",
           {
             style: {
-              fontSize: 54,
+              fontSize: 40,
               fontWeight: 900,
               color: "#8aab8e",
-              letterSpacing: "0.08em",
+              letterSpacing: "0.1em",
               marginTop: 10,
-              textAlign: "center",
+              zIndex: 1,
             },
           },
           "MUNDIAL 2026"
         ),
-        // Descripcion
+        // Separador
+        React.createElement("div", {
+          style: {
+            width: 48,
+            height: 3,
+            backgroundColor: "#8aab8e",
+            borderRadius: 2,
+            marginTop: 28,
+            opacity: 0.5,
+            zIndex: 1,
+          },
+        }),
+        // Descripción
         React.createElement(
           "div",
           {
             style: {
-              fontSize: 26,
+              fontSize: 20,
               color: "rgba(255,255,255,.45)",
               marginTop: 28,
-              textAlign: "center",
-              letterSpacing: "0.04em",
+              lineHeight: 1.6,
+              zIndex: 1,
             },
           },
-          "Pronostica con tus amigos \u00B7 Ronda a ronda"
+          "Pronostica los partidos"
         ),
-        // Sedes
+        React.createElement(
+          "div",
+          {
+            style: {
+              fontSize: 20,
+              color: "rgba(255,255,255,.45)",
+              lineHeight: 1.6,
+              zIndex: 1,
+            },
+          },
+          "con tus amigos \u00B7 Ronda a ronda"
+        ),
+        // Badge sedes
         React.createElement(
           "div",
           {
             style: {
               display: "flex",
-              marginTop: 32,
+              marginTop: 36,
               background: "rgba(122,158,128,.12)",
-              border: "1px solid rgba(122,158,128,.25)",
-              borderRadius: 40,
-              padding: "12px 32px",
+              border: "1px solid rgba(122,158,128,.28)",
+              borderRadius: 30,
+              padding: "10px 22px",
               color: "#8aab8e",
               fontWeight: 700,
-              letterSpacing: "0.06em",
-              fontSize: 22,
+              fontSize: 17,
+              letterSpacing: "0.04em",
+              zIndex: 1,
             },
           },
-          "USA \u00B7 Canada \u00B7 Mexico 2026"
+          "\uD83C\uDFC6 USA \u00B7 Canad\u00E1 \u00B7 M\u00E9xico"
         )
       ),
-      // Trofeo esquina
-      React.createElement(
-        "div",
-        {
-          style: {
-            position: "absolute",
-            bottom: 32,
-            right: 48,
-            fontSize: 80,
-            opacity: 0.12,
-          },
+      // Lado derecho — foto
+      React.createElement("img", {
+        src: "https://porra-mundial-2026-seven-tau.vercel.app/og-image.jpg",
+        style: {
+          width: 460,
+          height: "100%",
+          objectFit: "cover",
+          objectPosition: "center top",
         },
-        "\uD83C\uDFC6"
-      )
+      })
     ),
     { width: 1200, height: 630 }
   );
