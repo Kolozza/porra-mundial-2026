@@ -736,9 +736,9 @@ function PichichiPicker({ value, disabled, onChange }) {
       >
         <option value="">Elige goleador…</option>
         {PICHICHI.map((p) => (
-          <option key={p} value={p}>{playerFlag(p)} {p}</option>
+          <option key={p} value={p}>{p}</option>
         ))}
-        <option value="__otro__">✏️ Otro (escribir)…</option>
+        <option value="__otro__">Otro (escribir)…</option>
       </select>
       {otherMode && (
         <input
