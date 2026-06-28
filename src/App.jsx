@@ -912,6 +912,7 @@ function Picks({ admin, standings, meId }) {
   const locked = !!admin.locked?.[round.id];
   const fx = fixturesFor(admin, round.id);
   const [selected, setSelected] = useState([]);
+  const [matchFilter, setMatchFilter] = useState("all");
 
   if (!locked) {
     return (
@@ -939,6 +940,15 @@ function Picks({ admin, standings, meId }) {
     selected.length === 0 ? others : others.filter((p) => selected.includes(p.id));
   const visiblePlayers = [...(me ? [me] : []), ...visibleOthers];
 
+  const indexedFx = fx.map((m, i) => ({ m, i })).filter(({ i }) => {
+    const id = matchId(round.id, i);
+    const res = admin.results?.[id];
+    const resolved = res && res.adv && res.h !== "" && res.a !== "";
+    if (matchFilter === "proximos") return !resolved;
+    if (matchFilter === "jugados") return resolved;
+    return true;
+  });
+
   return (
     <div className="pane">
       <div className="round-banner">
@@ -946,6 +956,18 @@ function Picks({ admin, standings, meId }) {
           <h2>{round.name}</h2>
           <span className="mult">pronósticos revelados</span>
         </div>
+      </div>
+
+      <div className="picks-filters">
+        {[["all","Todos"],["proximos","Próximos"],["jugados","Jugados"]].map(([val, label]) => (
+          <button
+            key={val}
+            className={matchFilter === val ? "chip on" : "chip"}
+            onClick={() => setMatchFilter(val)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {others.length > 0 && (
@@ -971,6 +993,13 @@ function Picks({ admin, standings, meId }) {
         </div>
       )}
 
+      {indexedFx.length === 0 && (
+        <div className="empty" style={{ padding: "24px 0" }}>
+          {matchFilter === "proximos" ? "No quedan partidos por jugar." : "Aún no hay resultados."}
+        </div>
+      )}
+
+      {indexedFx.length > 0 && (
       <div className="picks-scroll">
         <table className="picks-table">
           <thead>
@@ -988,7 +1017,7 @@ function Picks({ admin, standings, meId }) {
             </tr>
           </thead>
           <tbody>
-            {fx.map((m, i) => {
+            {indexedFx.map(({ m, i }) => {
               const id = matchId(round.id, i);
               const res = admin.results?.[id];
               const resolved = res && res.adv && res.h !== "" && res.a !== "";
@@ -1035,6 +1064,7 @@ function Picks({ admin, standings, meId }) {
           </tbody>
         </table>
       </div>
+      )}
       <p className="mini muted center">
         🟢 Acertó quién pasa · 🟡 Además acertó el marcador exacto
       </p>
@@ -1876,6 +1906,7 @@ const CSS = `
 
 /* ── Responsive móvil ────────────────────────────────────── */
 /* ── Picks ───────────────────────────────────────────────── */
+.picks-filters{display:flex;gap:6px;margin-bottom:2px}
 .picks-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line)}
 .picks-table{width:100%;border-collapse:collapse;font-size:12px;background:var(--panel)}
 .picks-table th{
