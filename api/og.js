@@ -1,6 +1,8 @@
 import { ImageResponse } from "@vercel/og";
 import React from "react";
 
+export const config = { runtime: "edge" };
+
 export default function handler() {
   return new ImageResponse(
     React.createElement(
