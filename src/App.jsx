@@ -113,16 +113,17 @@ const PLAYER_COLORS = {
 };
 
 const COLOR_PALETTE = [
-  "#f97316", // naranja
-  "#facc15", // amarillo
-  "#4ade80", // verde
-  "#2dd4bf", // turquesa
-  "#2563eb", // azul
-  "#7c3aed", // violeta
-  "#c084fc", // malva
-  "#f472b6", // rosa
-  "#fb7185", // coral
-  "#a3e635", // lima
+  "#1F77B4", // azul
+  "#FF7F0E", // naranja
+  "#2CA02C", // verde
+  "#D62728", // rojo
+  "#9467BD", // morado
+  "#8C564B", // marrón
+  "#E377C2", // rosa
+  "#7F7F7F", // gris
+  "#BCBD22", // amarillo oliva
+  "#17BECF", // cian
+  "#393B79", // azul marino oscuro
 ];
 
 function getPlayerColor(name) {
