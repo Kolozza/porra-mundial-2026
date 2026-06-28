@@ -87,16 +87,23 @@ const COUNTRY_CODES = {
   "Senegal":"sn","Sudáfrica":"za","Suecia":"se","Suiza":"ch",
 };
 
-function Flag({ country, size = 28 }) {
+function Flag({ country, size = 24 }) {
   const code = COUNTRY_CODES[country];
   if (!code) return null;
+  const isSubdivision = code.includes("-");
   return (
-    <img
-      src={`https://flagcdn.com/w${size * 2}/${code}.png`}
-      width={size}
-      height={Math.round(size * 0.67)}
-      alt={country}
-      style={{ objectFit:"cover", borderRadius:3, flexShrink:0, display:"block" }}
+    <span
+      className={`fi fi-${code}${isSubdivision ? " fis" : ""}`}
+      style={{
+        width: size * 1.4,
+        height: size,
+        borderRadius: 3,
+        display: "inline-block",
+        flexShrink: 0,
+        backgroundSize: "cover",
+        verticalAlign: "middle",
+      }}
+      title={country}
     />
   );
 }
@@ -350,13 +357,7 @@ function MainApp() {
         <div className="flag-strip">
           <div className="flag-strip-inner">
             {[...Object.keys(COUNTRY_CODES), ...Object.keys(COUNTRY_CODES)].map((c, i) => (
-              <img
-                key={i}
-                src={`https://flagcdn.com/w40/${COUNTRY_CODES[c]}.png`}
-                height="18"
-                alt={c}
-                style={{ margin:"0 5px", borderRadius:2, verticalAlign:"middle", display:"inline-block" }}
-              />
+              <Flag key={i} country={c} size={18} />
             ))}
           </div>
         </div>
