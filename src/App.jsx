@@ -27,31 +27,63 @@ const BONUS_TOTAL =
   BONUS.champion + BONUS.pichichi + PLENO.r32 + PLENO.r16 + PLENO.qf; // 41
 
 const PICHICHI = [
-  "Kylian Mbappé (Francia)",
-  "Erling Haaland (Noruega)",
-  "Harry Kane (Inglaterra)",
-  "Lamine Yamal (España)",
-  "Vinícius Júnior (Brasil)",
-  "Mohamed Salah (Egipto)",
-  "Viktor Gyökeres (Suecia)",
-  "Julián Álvarez (Argentina)",
+  // Argentina
+  "Lionel Messi (Argentina)",
   "Lautaro Martínez (Argentina)",
-  "Cristiano Ronaldo (Portugal)",
+  "Julián Álvarez (Argentina)",
+  // Francia
+  "Kylian Mbappé (Francia)",
+  "Ousmane Dembélé (Francia)",
+  "Marcus Thuram (Francia)",
+  // Brasil
+  "Vinícius Júnior (Brasil)",
   "Raphinha (Brasil)",
   "Rodrygo (Brasil)",
-  "Cody Gakpo (Países Bajos)",
-  "Memphis Depay (Países Bajos)",
-  "Romelu Lukaku (Bélgica)",
-  "Kai Havertz (Alemania)",
-  "Florian Wirtz (Alemania)",
+  "Richarlison (Brasil)",
+  // Noruega
+  "Erling Haaland (Noruega)",
+  // Inglaterra
+  "Harry Kane (Inglaterra)",
+  "Phil Foden (Inglaterra)",
   "Bukayo Saka (Inglaterra)",
+  // España
+  "Lamine Yamal (España)",
   "Mikel Oyarzabal (España)",
+  "Dani Olmo (España)",
+  // Portugal
+  "Cristiano Ronaldo (Portugal)",
+  "Diogo Jota (Portugal)",
+  "Gonçalo Ramos (Portugal)",
+  // Alemania
+  "Jamal Musiala (Alemania)",
+  "Florian Wirtz (Alemania)",
+  "Kai Havertz (Alemania)",
+  // Países Bajos
+  "Cody Gakpo (Países Bajos)",
+  "Xavi Simons (Países Bajos)",
+  "Memphis Depay (Países Bajos)",
+  // Suecia
+  "Viktor Gyökeres (Suecia)",
   "Alexander Isak (Suecia)",
-  "Christian Pulisic (Estados Unidos)",
+  // Bélgica
+  "Romelu Lukaku (Bélgica)",
+  // Egipto
+  "Mohamed Salah (Egipto)",
+  // Colombia
   "Luis Díaz (Colombia)",
+  "James Rodríguez (Colombia)",
+  // México
   "Santiago Giménez (México)",
+  "Raúl Jiménez (México)",
+  // Estados Unidos
+  "Christian Pulisic (Estados Unidos)",
+  "Ricardo Pepi (Estados Unidos)",
+  // Ghana
   "Mohammed Kudus (Ghana)",
+  // Suiza
   "Breel Embolo (Suiza)",
+  // Senegal
+  "Sadio Mané (Senegal)",
 ];
 
 const R32 = [
