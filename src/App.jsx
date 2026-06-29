@@ -111,11 +111,18 @@ const TEAMS = [...new Set(R32.flat())].sort((a, b) => a.localeCompare(b, "es"));
 // No modifica R32 para preservar los IDs de predicciones guardadas
 const R32_DATE_ORDER = [0, 2, 3, 1, 5, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 const R32_DATES = {
-  0:"28 Jun", 2:"29 Jun", 3:"29 Jun", 1:"29 Jun",
-  5:"30 Jun", 4:"30 Jun", 6:"30 Jun",
-  7:"1 Jul",  8:"1 Jul",  9:"1 Jul",
-  10:"2 Jul", 11:"2 Jul", 12:"2 Jul",
-  13:"3 Jul", 14:"3 Jul", 15:"3 Jul",
+  0:"28 Jun", 2:"29 Jun", 3:"29 Jun", 1:"30 Jun",
+  5:"30 Jun", 4:"30 Jun", 6:"1 Jul",
+  7:"1 Jul",  8:"1 Jul",  9:"2 Jul",
+  10:"2 Jul", 11:"3 Jul", 12:"3 Jul",
+  13:"3 Jul", 14:"4 Jul", 15:"4 Jul",
+};
+const R32_TIMES = {
+  0:"21:00", 2:"19:00", 3:"22:30", 1:"03:00",
+  5:"19:00", 4:"23:00", 6:"03:00",
+  7:"18:00", 8:"22:00", 9:"02:00",
+  10:"21:00",11:"01:00",12:"05:00",
+  13:"20:00",14:"00:00",15:"03:30",
 };
 
 const PLAYER_COLORS = {
@@ -1478,7 +1485,9 @@ function Picks({ admin, standings, meId }) {
                 <tr key={id} className={`picks-row${hideOthers ? " picks-row-hidden" : ""}`}>
                   <td className="picks-match-cell">
                     {round.id === "r32" && R32_DATES[i] && (
-                      <div className="match-date">{R32_DATES[i]}</div>
+                      <div className="match-date">
+                        {R32_DATES[i]}{R32_TIMES[i] ? <span className="match-time"> · {R32_TIMES[i]}</span> : ""}
+                      </div>
                     )}
                     <div className="picks-teams">
                       <span><Flag country={m[0]} size={13} /> {m[0]}</span>
@@ -2437,6 +2446,7 @@ const CSS = `
   background:var(--panel);z-index:1;
 }
 .match-date{font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;opacity:.7}
+.match-time{color:var(--green);opacity:1;font-variant-numeric:tabular-nums}
 .picks-teams{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600}
 .picks-teams span{display:flex;align-items:center;gap:5px}
 .picks-result{font-size:10px;color:var(--green);margin-top:4px;font-family:var(--mono);display:flex;align-items:center;gap:3px}
