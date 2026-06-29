@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabase";
 
 /* ----------------------------------------------------------------
@@ -25,6 +25,52 @@ const BONUS = {
 const PLENO = { r32: 8, r16: 5, qf: 3 };
 const BONUS_TOTAL =
   BONUS.champion + BONUS.pichichi + PLENO.r32 + PLENO.r16 + PLENO.qf; // 41
+
+/* ── Canciones por jugador (YouTube video IDs) ─────────── */
+const PLAYER_SONGS = {
+  "Mati":    "vTkN9-nQPKw", // Ninel Conde - Bombón Asesino
+  "Sebas":   "vTkN9-nQPKw",
+  "Juan":    "vTkN9-nQPKw",
+  "Flo":     "pw4hP6lgrP4", // Erika - German March
+  "Erika":   "pw4hP6lgrP4",
+  "Canario": "yx2hlHq7b7U", // Himno Nacional de España
+  "Mocete":  "yx2hlHq7b7U",
+  "Ivan":    "yx2hlHq7b7U",
+  "Niko":    "yx2hlHq7b7U",
+  "Gentjan": "d76REwyqtsM", // Albanian National Anthem
+  "Ray":     "YnopHCL1Jk8", // O-Zone - Dragostea Din Tei
+  "Alex":    "YnopHCL1Jk8",
+};
+
+// Singleton YouTube IFrame player (vive fuera del árbol React)
+let _yt = null;
+let _ytOk = false;
+let _ytCbs = [];
+function _initYT(cb) {
+  if (_ytOk) { cb(); return; }
+  _ytCbs.push(cb);
+  if (!document.getElementById('_yt_api')) {
+    window.onYouTubeIframeAPIReady = () => {
+      _ytOk = true;
+      _ytCbs.forEach(f => f());
+      _ytCbs = [];
+    };
+    const s = document.createElement('script');
+    s.id = '_yt_api';
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  }
+}
+function _ytDiv() {
+  let d = document.getElementById('_yt_div');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = '_yt_div';
+    d.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden';
+    document.body.appendChild(d);
+  }
+  return d;
+}
 
 const PICHICHI = [
   // Argentina
@@ -345,6 +391,52 @@ export default function Root() {
   return <MainApp />;
 }
 
+/* ── MusicPlayer ─────────────────────────────────────────── */
+function MusicPlayer({ me }) {
+  const [playing, setPlaying] = useState(false);
+  const [ready, setReady] = useState(false);
+  const loadedSong = useRef(null);
+  const songId = me ? PLAYER_SONGS[me.name] : null;
+
+  useEffect(() => {
+    if (!songId) {
+      if (_yt) { try { _yt.pauseVideo(); } catch(_) {} }
+      setPlaying(false);
+      return;
+    }
+    _ytDiv(); // ensure DOM node exists before API loads
+    _initYT(() => {
+      if (!_yt) {
+        _yt = new window.YT.Player('_yt_div', {
+          width: 1, height: 1,
+          videoId: songId,
+          playerVars: { autoplay: 0, controls: 0, loop: 1, playlist: songId, origin: window.location.origin },
+          events: {
+            onReady: () => { loadedSong.current = songId; setReady(true); },
+          },
+        });
+      } else if (loadedSong.current !== songId) {
+        try { _yt.cueVideoById({ videoId: songId, startSeconds: 0 }); } catch(_) {}
+        loadedSong.current = songId;
+        setPlaying(false);
+      }
+    });
+  }, [songId]); // eslint-disable-line
+
+  const toggle = () => {
+    if (!_yt || !ready) return;
+    if (playing) { _yt.pauseVideo(); setPlaying(false); }
+    else { _yt.playVideo(); setPlaying(true); }
+  };
+
+  if (!songId) return null;
+  return (
+    <button className="music-btn" onClick={toggle} title={playing ? "Parar música" : "Reproducir música"}>
+      {playing ? "🔊" : "🔇"}
+    </button>
+  );
+}
+
 /* ================================================================
    MainApp
 ================================================================ */
@@ -542,6 +634,7 @@ function MainApp() {
 
       {saving && <div className="saving">guardando…</div>}
       {toast && <div className="toast">{toast}</div>}
+      <MusicPlayer me={me} />
     </div>
   );
 }
@@ -2815,6 +2908,19 @@ const CSS = `
   display:flex;align-items:center;gap:5px;
   padding:4px 10px;background:rgba(248,113,113,.07);
 }
+
+/* ── Botón de música flotante ────────────────────────────── */
+.music-btn{
+  position:fixed;bottom:22px;right:16px;
+  width:46px;height:46px;border-radius:50%;
+  background:var(--panel);border:1px solid var(--line);
+  font-size:20px;cursor:pointer;z-index:999;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);
+  transition:transform .1s,box-shadow .15s;
+}
+.music-btn:hover{box-shadow:0 6px 18px rgba(0,0,0,.6)}
+.music-btn:active{transform:scale(.91)}
 
 @media(max-width:480px){
   .hdr h1{font-size:16px;letter-spacing:.08em}
