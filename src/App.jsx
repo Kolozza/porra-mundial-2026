@@ -1172,19 +1172,24 @@ function Clasificacion({ standings, admin, meId }) {
     return <div className="empty">Aún no hay jugadores. ¡Que entren los amigos!</div>;
   const medals = ["🥇", "🥈", "🥉"];
   const players = standings.map(s => s.p);
+  const rankOf = standings.map((item) => {
+    const firstIdx = standings.findIndex(s => s.s.total === item.s.total);
+    return firstIdx + 1;
+  });
   return (
     <div className="pane">
       <div className="board">
         {standings.map(({ p, s }, i) => {
+          const rank = rankOf[i];
           const form = getForm(p, admin);
           const maxRem = maxRemaining(p, admin);
           return (
           <div key={p.id}>
             <div
-              className={`row ${p.id === meId ? "me" : ""} ${i < 3 ? "podium" : ""}`}
+              className={`row ${p.id === meId ? "me" : ""} ${rank <= 3 ? "podium" : ""}`}
               onClick={() => setOpen(open === p.id ? null : p.id)}
             >
-              <span className="rank">{medals[i] || i + 1}</span>
+              <span className="rank">{medals[rank - 1] || rank}</span>
               <span className="pname">
                 <span className="pname-top">
                   <span className="player-dot" style={{ background: getPlayerColor(p.name) }} />
