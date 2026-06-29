@@ -397,8 +397,17 @@ export default function Root() {
 function MusicPlayer({ me }) {
   const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
+  const [attract, setAttract] = useState(false);
   const loadedSong = useRef(null);
   const songId = me ? PLAYER_SONGS[me.name] : null;
+
+  // Mostrar animación de atracción los primeros segundos al detectar canción
+  useEffect(() => {
+    if (!songId) return;
+    setAttract(true);
+    const t = setTimeout(() => setAttract(false), 4000);
+    return () => clearTimeout(t);
+  }, [songId]);
 
   useEffect(() => {
     if (!songId) {
@@ -406,7 +415,7 @@ function MusicPlayer({ me }) {
       setPlaying(false);
       return;
     }
-    _ytDiv(); // ensure DOM node exists before API loads
+    _ytDiv();
     _initYT(() => {
       if (!_yt) {
         _yt = new window.YT.Player('_yt_div', {
@@ -426,6 +435,7 @@ function MusicPlayer({ me }) {
   }, [songId]); // eslint-disable-line
 
   const toggle = () => {
+    setAttract(false);
     if (!_yt || !ready) return;
     if (playing) { _yt.pauseVideo(); setPlaying(false); }
     else { _yt.playVideo(); setPlaying(true); }
@@ -433,7 +443,11 @@ function MusicPlayer({ me }) {
 
   if (!songId) return null;
   return (
-    <button className="music-btn" onClick={toggle} title={playing ? "Parar música" : "Reproducir música"}>
+    <button
+      className={`music-btn${attract && !playing ? " music-attract" : ""}`}
+      onClick={toggle}
+      title={playing ? "Parar música" : "Reproducir música"}
+    >
       {playing ? "🔊" : "🔇"}
     </button>
   );
@@ -596,6 +610,7 @@ function MainApp() {
             <h1>LA PORRA · MUNDIAL 2026</h1>
             <p className="hdr-sub">🏆 USA · Canadá · México · Fase eliminatoria</p>
           </div>
+          <MusicPlayer me={me} />
         </div>
         <IdentityBar me={me} onJoin={joinGame} onRecover={recoverGame} onLogout={logout} />
       </header>
@@ -636,7 +651,6 @@ function MainApp() {
 
       {saving && <div className="saving">guardando…</div>}
       {toast && <div className="toast">{toast}</div>}
-      <MusicPlayer me={me} />
     </div>
   );
 }
@@ -2931,18 +2945,24 @@ const CSS = `
   padding:4px 10px;background:rgba(248,113,113,.07);
 }
 
-/* ── Botón de música flotante ────────────────────────────── */
+/* ── Botón de música (header) ────────────────────────────── */
 .music-btn{
-  position:fixed;bottom:22px;right:16px;
-  width:46px;height:46px;border-radius:50%;
-  background:var(--panel);border:1px solid var(--line);
-  font-size:20px;cursor:pointer;z-index:999;
+  width:38px;height:38px;border-radius:50%;flex-shrink:0;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  font-size:18px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 14px rgba(0,0,0,.5);
-  transition:transform .1s,box-shadow .15s;
+  transition:transform .1s,box-shadow .15s,background .2s;
 }
-.music-btn:hover{box-shadow:0 6px 18px rgba(0,0,0,.6)}
-.music-btn:active{transform:scale(.91)}
+.music-btn:hover{background:rgba(255,255,255,.13)}
+.music-btn:active{transform:scale(.88)}
+.music-attract{
+  animation:musicAttract 1s ease-in-out 4;
+}
+@keyframes musicAttract{
+  0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(120,220,120,0)}
+  30%{transform:scale(1.22);box-shadow:0 0 0 7px rgba(120,220,120,.25)}
+  60%{transform:scale(1.08);box-shadow:0 0 0 13px rgba(120,220,120,0)}
+}
 
 @media(max-width:480px){
   .hdr h1{font-size:16px;letter-spacing:.08em}
