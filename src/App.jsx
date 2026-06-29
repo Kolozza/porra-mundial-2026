@@ -636,7 +636,7 @@ function MainApp() {
         <div className="empty">Cargando porra…</div>
       ) : (
         <>
-          <LiveMatchPanel admin={admin} players={players} />
+          <LiveMatchPanel admin={admin} players={players} standings={standings} />
           {tab === "jugar" ? (
             <Jugar admin={admin} me={me} onSave={handleSave} />
           ) : tab === "clasi" ? (
@@ -1233,9 +1233,14 @@ function NextMatchCountdown({ admin, players }) {
 }
 
 /* ---------------- Live Match Panel ---------------- */
-function LiveCard({ R, m, id, res, players }) {
+function LiveCard({ R, m, id, res, players, standings }) {
   const h = Number(res.h), a = Number(res.a);
   const leading = h > a ? m[0] : a > h ? m[1] : null;
+
+  // Orden de clasificación general (standings ya viene ordenado)
+  const standingOrder = standings
+    ? standings.map(s => s.p.id)
+    : players.map(p => p.id);
 
   const stats = players
     .map((p) => {
@@ -1249,7 +1254,7 @@ function LiveCard({ R, m, id, res, players }) {
       const pts = ((advStatus === "winning" ? 3 : 0) + (scoreOk ? 2 : 0)) * R.mult;
       return { p, pred, pa, advStatus, scoreOk, pts };
     })
-    .sort((x, y) => y.pts - x.pts || x.p.name.localeCompare(y.p.name));
+    .sort((x, y) => standingOrder.indexOf(x.p.id) - standingOrder.indexOf(y.p.id));
 
   return (
     <div className="live-card">
@@ -1302,7 +1307,7 @@ function LiveCard({ R, m, id, res, players }) {
   );
 }
 
-function LiveMatchPanel({ admin, players }) {
+function LiveMatchPanel({ admin, players, standings }) {
   const now = new Date();
   const liveMatches = [];
   for (const R of ROUNDS) {
@@ -1321,7 +1326,7 @@ function LiveMatchPanel({ admin, players }) {
     return (
       <div className="live-panel">
         {liveMatches.map((lm) => (
-          <LiveCard key={lm.id} {...lm} players={players} />
+          <LiveCard key={lm.id} {...lm} players={players} standings={standings} />
         ))}
       </div>
     );
