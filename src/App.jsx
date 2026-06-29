@@ -39,7 +39,7 @@ const PLAYER_SONGS = {
   "Niko":    "UeFC_9oGqWg", // Los Palmeras - Bombón Asesino
   "Gentjan": "d76REwyqtsM", // Albanian National Anthem
   "Ray":     "YnopHCL1Jk8", // O-Zone - Dragostea Din Tei
-  "Alex":    "YnopHCL1Jk8",
+  "Alex":    "LydqaFWYjgA", // Swords of Iraq - Iraqi Patriotic Song
 };
 
 // Singleton YouTube IFrame player (vive fuera del árbol React)
