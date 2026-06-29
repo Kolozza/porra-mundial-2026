@@ -28,15 +28,15 @@ const BONUS_TOTAL =
 
 /* ── Canciones por jugador (YouTube video IDs) ─────────── */
 const PLAYER_SONGS = {
-  "Mati":    "vTkN9-nQPKw", // Ninel Conde - Bombón Asesino
-  "Sebas":   "vTkN9-nQPKw",
-  "Juan":    "vTkN9-nQPKw",
+  "Mati":    "UeFC_9oGqWg", // Los Palmeras - Bombón Asesino
+  "Sebas":   "UeFC_9oGqWg",
+  "Juan":    "UeFC_9oGqWg",
   "Flo":     "pw4hP6lgrP4", // Erika - German March
   "Erika":   "pw4hP6lgrP4",
   "Canario": "yx2hlHq7b7U", // Himno Nacional de España
   "Mocete":  "2E1p-xSCTKM", // Cara al Sol - Himno de la Falange
   "Ivan":    "2E1p-xSCTKM",
-  "Niko":    "vTkN9-nQPKw", // Bombón Asesino
+  "Niko":    "UeFC_9oGqWg", // Los Palmeras - Bombón Asesino
   "Gentjan": "d76REwyqtsM", // Albanian National Anthem
   "Ray":     "YnopHCL1Jk8", // O-Zone - Dragostea Din Tei
   "Alex":    "YnopHCL1Jk8",
