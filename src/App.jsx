@@ -1070,12 +1070,20 @@ function CarreraChart({ admin, players }) {
   const n = Math.max(players.length, 2);
   const steps = events.length;
 
-  // Visual position at each step: sorted score desc, name asc as tiebreak
+  // Visual position at each step: tied players share the average of their positions
   const posAt = (step) => {
-    const arr = histories.map(h => ({ id: h.player.id, name: h.player.name, score: h.snap[step] }));
-    arr.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "es"));
+    const arr = histories.map(h => ({ id: h.player.id, score: h.snap[step] }));
+    arr.sort((a, b) => b.score - a.score);
     const map = {};
-    arr.forEach((s, i) => { map[s.id] = i + 1; });
+    let i = 0;
+    while (i < arr.length) {
+      let j = i;
+      while (j < arr.length && arr[j].score === arr[i].score) j++;
+      // positions i+1 .. j (1-based), average = (i+1+j)/2
+      const avgPos = (i + j + 1) / 2;
+      for (let k = i; k < j; k++) map[arr[k].id] = avgPos;
+      i = j;
+    }
     return map;
   };
 
