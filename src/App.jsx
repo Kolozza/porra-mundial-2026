@@ -1063,100 +1063,126 @@ function CarreraChart({ admin, players }) {
       </p>
     );
 
-  const W = 580, H = 240;
-  const pad = { t: 18, r: 82, b: 26, l: 30 };
+  const W = 580, H = 220;
+  const pad = { t: 28, r: 94, b: 16, l: 22 };
   const iW = W - pad.l - pad.r;
   const iH = H - pad.t - pad.b;
+  const n = Math.max(players.length, 2);
   const steps = events.length;
-  const maxPts = Math.max(...histories.map(h => h.snap[h.snap.length - 1]), 10);
+
+  // Visual position at each step: sorted score desc, name asc as tiebreak
+  const posAt = (step) => {
+    const arr = histories.map(h => ({ id: h.player.id, name: h.player.name, score: h.snap[step] }));
+    arr.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "es"));
+    const map = {};
+    arr.forEach((s, i) => { map[s.id] = i + 1; });
+    return map;
+  };
+
+  const allPos = Array.from({ length: steps + 1 }, (_, s) => posAt(s));
 
   const xs = i => pad.l + (i / steps) * iW;
-  const ys = v => pad.t + iH - (v / maxPts) * iH;
+  const ys = pos => pad.t + ((pos - 1) / (n - 1)) * iH;
 
-  // Round start markers
+  // Smooth cubic bezier S-curve between rank positions
+  const makePath = (id) => {
+    let d = `M ${xs(0).toFixed(1)} ${ys(allPos[0][id]).toFixed(1)}`;
+    for (let i = 1; i <= steps; i++) {
+      const x0 = xs(i - 1), y0 = ys(allPos[i - 1][id]);
+      const x1 = xs(i), y1 = ys(allPos[i][id]);
+      const mx = ((x0 + x1) / 2).toFixed(1);
+      d += ` C ${mx} ${y0.toFixed(1)} ${mx} ${y1.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    }
+    return d;
+  };
+
+  // Round boundaries
   const boundaries = [];
   let curRound = null;
   events.forEach((ev, i) => {
     if (ev.roundId !== curRound) { boundaries.push({ i, roundId: ev.roundId }); curRound = ev.roundId; }
   });
 
-  // Y grid ticks
-  const tickStep = maxPts <= 15 ? 5 : maxPts <= 40 ? 10 : maxPts <= 80 ? 20 : 50;
-  const ticks = [];
-  for (let v = 0; v <= maxPts; v += tickStep) ticks.push(v);
+  const finalPos = allPos[steps];
+  const finalScore = {};
+  histories.forEach(h => { finalScore[h.player.id] = h.snap[steps]; });
 
-  // Sort histories by final score desc to layer lower scores above higher (draw on top)
-  const sorted = [...histories].sort((a, b) => a.snap[a.snap.length - 1] - b.snap[b.snap.length - 1]);
-
-  // Offset overlapping labels
-  const labelPositions = [];
-  const labelsSorted = [...histories].sort((a, b) => b.snap[b.snap.length - 1] - a.snap[a.snap.length - 1]);
-  labelsSorted.forEach((h, idx) => {
-    const raw = ys(h.snap[h.snap.length - 1]);
-    const prev = labelPositions[idx - 1];
-    labelPositions.push(prev != null && prev - raw < 13 ? prev - 13 : raw);
-  });
-  const labelMap = {};
-  labelsSorted.forEach((h, idx) => { labelMap[h.player.id] = labelPositions[idx]; });
+  // Draw worst positions first so leader renders on top
+  const drawOrder = [...histories].sort((a, b) => finalPos[b.player.id] - finalPos[a.player.id]);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
-      <defs>
-        <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#031a06" />
-          <stop offset="100%" stopColor="#010c03" />
-        </linearGradient>
-      </defs>
+      {/* Background */}
+      <rect x={pad.l} y={pad.t} width={iW} height={iH} fill="rgba(0,0,0,0.28)" rx="4" />
 
-      {/* Field */}
-      <rect x={pad.l} y={pad.t} width={iW} height={iH} fill="url(#cg)" rx="3" />
-      {Array.from({ length: 7 }).map((_, k) => (
-        <rect key={k} x={pad.l + k * (iW / 7)} y={pad.t} width={iW / 14} height={iH}
-          fill="rgba(255,255,255,0.013)" />
-      ))}
-
-      {/* Y grid */}
-      {ticks.map(v => (
-        <g key={v}>
-          <line x1={pad.l} y1={ys(v)} x2={pad.l + iW} y2={ys(v)}
-            stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
-          <text x={pad.l - 4} y={ys(v) + 3.5} textAnchor="end" fontSize="9"
-            fill="rgba(255,255,255,0.3)">{v}</text>
-        </g>
-      ))}
-
-      {/* Round boundaries */}
-      {boundaries.map(({ i, roundId }) => {
-        const x = xs(i);
-        const R = ROUNDS.find(r => r.id === roundId);
+      {/* Position lanes */}
+      {Array.from({ length: n }, (_, i) => {
+        const y = ys(i + 1);
         return (
-          <g key={roundId}>
-            <line x1={x} y1={pad.t} x2={x} y2={pad.t + iH}
-              stroke="rgba(255,255,255,0.13)" strokeWidth="1" strokeDasharray="3,3" />
-            <text x={x + 3} y={pad.t + iH + 16} fontSize="9"
-              fill="rgba(255,255,255,0.4)">{R?.short}</text>
+          <g key={i}>
+            <line x1={pad.l} y1={y} x2={pad.l + iW} y2={y}
+              stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+            <text x={pad.l - 5} y={y + 4} textAnchor="end" fontSize="9"
+              fill="rgba(255,255,255,0.25)" fontWeight="700">{i + 1}º</text>
           </g>
         );
       })}
 
-      {/* Lines (sorted: winner on top) */}
-      {sorted.map(({ player, snap }) => {
+      {/* "1º = mejor" label */}
+      <text x={pad.l} y={pad.t - 10} fontSize="8" fill="rgba(255,255,255,0.3)"
+        letterSpacing=".04em">1º = MEJOR</text>
+
+      {/* Round boundaries */}
+      {boundaries.map(({ i, roundId }) => {
+        const R = ROUNDS.find(r => r.id === roundId);
+        const x = xs(i);
+        return (
+          <g key={roundId}>
+            {i > 0 && (
+              <line x1={x} y1={pad.t} x2={x} y2={pad.t + iH}
+                stroke="rgba(255,255,255,0.16)" strokeWidth="1" strokeDasharray="3,3" />
+            )}
+            <text x={x + (i === 0 ? 0 : 3)} y={pad.t - 10} fontSize="8.5"
+              fill="rgba(255,255,255,0.5)" fontWeight="800" letterSpacing=".05em">
+              {R?.short?.toUpperCase()}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Paths */}
+      {drawOrder.map(({ player }) => {
         const color = getPlayerColor(player.name);
-        const pts = snap.map((v, i) => `${xs(i)},${ys(v)}`).join(" ");
-        const lx = xs(snap.length - 1);
-        const ly = labelMap[player.id];
-        const dotY = ys(snap[snap.length - 1]);
+        const isLeader = finalPos[player.id] === 1;
+        return (
+          <path key={player.id}
+            d={makePath(player.id)}
+            fill="none"
+            stroke={color}
+            strokeWidth={isLeader ? 3 : 1.8}
+            opacity={isLeader ? 1 : 0.55}
+            strokeLinecap="round"
+            style={isLeader ? { filter: `drop-shadow(0 0 6px ${color}bb)` } : undefined}
+          />
+        );
+      })}
+
+      {/* End dots + labels */}
+      {histories.map(({ player }) => {
+        const color = getPlayerColor(player.name);
+        const pos = finalPos[player.id];
+        const score = finalScore[player.id];
+        const cx = xs(steps);
+        const cy = ys(pos);
         return (
           <g key={player.id}>
-            <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5"
-              strokeLinejoin="round" strokeLinecap="round"
-              style={{ filter: `drop-shadow(0 0 3px ${color}80)` }} />
-            <line x1={lx} y1={dotY} x2={lx + 6} y2={ly}
-              stroke={color} strokeWidth="1" opacity="0.5" />
-            <circle cx={lx} cy={dotY} r="4" fill={color}
+            <circle cx={cx} cy={cy} r="3.5" fill={color}
               style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
-            <text x={lx + 9} y={ly + 4} fontSize="10.5" fill={color} fontWeight="800">
+            <line x1={cx + 4} y1={cy} x2={cx + 9} y2={cy}
+              stroke={color} strokeWidth="0.8" opacity="0.4" />
+            <text x={cx + 11} y={cy + 4} fontSize="10" fill={color} fontWeight="800">
               {player.name}
+              <tspan fontSize="8" opacity="0.55" dx="3">{score}p</tspan>
             </text>
           </g>
         );
@@ -1237,7 +1263,7 @@ function Clasificacion({ standings, admin, meId }) {
       <p className="mini muted center">Toca un nombre para ver el desglose por ronda.</p>
 
       <section className="card" style={{ padding: "14px 8px 10px" }}>
-        <h3>Carrera de puntos</h3>
+        <h3>Carrera · posición tras cada partido</h3>
         <CarreraChart admin={admin} players={players} />
       </section>
     </div>
