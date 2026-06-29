@@ -990,12 +990,12 @@ function findNextMatch(admin) {
     if (!dateStr || !timeStr) continue;
     const kickoff = parseMatchDateTime(dateStr, timeStr);
     if (kickoff > now && (!next || kickoff < next.kickoff))
-      next = { kickoff, teams: R32[origIdx], dateStr, timeStr };
+      next = { kickoff, teams: R32[origIdx], dateStr, timeStr, id: matchId("r32", origIdx) };
   }
   return next;
 }
 
-function NextMatchCountdown({ admin }) {
+function NextMatchCountdown({ admin, players }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -1011,6 +1011,17 @@ function NextMatchCountdown({ admin }) {
   const hours = Math.floor((diff % 86400000) / 3600000);
   const mins  = Math.floor((diff % 3600000) / 60000);
   const secs  = Math.floor((diff % 60000) / 1000);
+
+  const showPreds = diff < 3600000; // menos de 1 hora
+  const preds = showPreds && players
+    ? [...players]
+        .map(p => {
+          const pred = p.preds?.["r32"]?.[next.id];
+          const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
+          return { name: p.name, h: hasPred ? pred.h : null, a: hasPred ? pred.a : null };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, "es"))
+    : null;
 
   return (
     <div className="cd-panel">
@@ -1029,6 +1040,21 @@ function NextMatchCountdown({ admin }) {
         <div className="cd-unit"><b>{String(mins).padStart(2,"0")}</b><span>m</span></div>
         <div className="cd-unit"><b>{String(secs).padStart(2,"0")}</b><span>s</span></div>
       </div>
+      {showPreds && preds && (
+        <div className="cd-preds">
+          <div className="cd-preds-title">Pronósticos</div>
+          <div className="cd-preds-list">
+            {preds.map(({ name, h, a }) => (
+              <div key={name} className="cd-pred-row">
+                <span className="cd-pred-name">{name}</span>
+                {h != null
+                  ? <span className="cd-pred-score">{h} – {a}</span>
+                  : <span className="cd-pred-none">—</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1115,7 +1141,7 @@ function LiveMatchPanel({ admin, players }) {
       }
     });
   }
-  if (!liveMatches.length) return <NextMatchCountdown admin={admin} />;
+  if (!liveMatches.length) return <NextMatchCountdown admin={admin} players={players} />;
   return (
     <div className="live-panel">
       {liveMatches.map((lm) => (
@@ -1496,11 +1522,6 @@ function Clasificacion({ standings, admin, meId }) {
       <section className="card" style={{ padding: "14px 8px 10px" }}>
         <h3>Carrera · posición tras cada partido</h3>
         <CarreraChart admin={admin} players={players} />
-      </section>
-
-      <section className="card" style={{ padding: "14px 12px 14px" }}>
-        <h3>Cuadro del torneo</h3>
-        <BracketView admin={admin} />
       </section>
 
     </div>
@@ -2671,6 +2692,13 @@ const CSS = `
   border-radius:10px;padding:8px 4px 6px}
 .cd-unit b{font-size:24px;font-weight:900;font-family:var(--mono);color:#fff;line-height:1;font-variant-numeric:tabular-nums}
 .cd-unit span{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.cd-preds{border-top:1px solid rgba(255,255,255,.08);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.cd-preds-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.cd-preds-list{display:flex;flex-direction:column;gap:4px}
+.cd-pred-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.cd-pred-name{font-weight:600;color:rgba(255,255,255,.75)}
+.cd-pred-score{font-family:var(--mono);font-weight:900;font-size:13px;color:var(--green)}
+.cd-pred-none{color:var(--muted);font-size:13px}
 
 /* ── Bracket ─────────────────────────────────────────────── */
 .bracket-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
