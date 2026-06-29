@@ -1285,6 +1285,162 @@ function CarreraChart({ admin, players }) {
   );
 }
 
+/* ---------------- Stats helpers ---------------- */
+function TrophyCard({ icon, label, winners, value }) {
+  return (
+    <div className="trophy-card">
+      <span className="trophy-icon">{icon}</span>
+      <span className="trophy-label">{label}</span>
+      {winners.length === 0 ? (
+        <span className="trophy-empty">—</span>
+      ) : (
+        <div className="trophy-winners">
+          {winners.map(({ name, color }) => (
+            <span key={name} className="trophy-name" style={{ color }}>{name}</span>
+          ))}
+        </div>
+      )}
+      <span className="trophy-value">{value}</span>
+    </div>
+  );
+}
+
+function StatsPanel({ standings, admin }) {
+  const allPlayers = standings.map(s => s.p);
+
+  const done = [];
+  for (const R of ROUNDS) {
+    const fx = fixturesFor(admin, R.id);
+    fx.forEach((m, i) => {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      if (res && res.adv != null && res.h !== "" && res.a !== "")
+        done.push({ R, m, id, res });
+    });
+  }
+
+  if (!done.length)
+    return <p className="mini muted center" style={{ padding:"6px 0" }}>Las estadísticas aparecen con el primer resultado.</p>;
+
+  // Majority pick per completed match
+  const majority = done.map(({ R, m, id }) => {
+    const cnt = {};
+    allPlayers.forEach(pl => {
+      const pr = pl.preds?.[R.id]?.[id];
+      if (!pr || (pr.h === "" && pr.a === "")) return;
+      const pa = predAdv(pr, m[0], m[1]);
+      if (pa) cnt[pa] = (cnt[pa] || 0) + 1;
+    });
+    const h = cnt[m[0]] || 0, a = cnt[m[1]] || 0;
+    return h !== a ? (h > a ? m[0] : m[1]) : null;
+  });
+
+  // Per-player stats + heatmap cells
+  const pstats = allPlayers.map(player => {
+    let played = 0, hits = 0, exacts = 0, contrHits = 0;
+    const cells = done.map(({ R, m, id, res }, ci) => {
+      const pred = player.preds?.[R.id]?.[id];
+      if (!pred || (pred.h === "" && pred.a === "")) return "none";
+      played++;
+      const pa = predAdv(pred, m[0], m[1]);
+      const advOk = pa === res.adv;
+      const scoreOk = Number(pred.h) === Number(res.h) && Number(pred.a) === Number(res.a);
+      if (advOk) hits++;
+      if (scoreOk) exacts++;
+      const maj = majority[ci];
+      if (maj && pa !== maj && advOk) contrHits++;
+      return scoreOk ? "exact" : advOk ? "hit" : "miss";
+    });
+    return { player, played, hits, exacts, contrHits, cells };
+  });
+
+  // Awards
+  const withPlayed = pstats.filter(s => s.played > 0);
+  const bestRate = withPlayed.length ? Math.max(...withPlayed.map(s => s.hits / s.played)) : 0;
+  const bestExact = Math.max(...pstats.map(s => s.exacts), 0);
+  const bestContr = Math.max(...pstats.map(s => s.contrHits), 0);
+
+  const mkW = (list) => list.map(s => ({ name: s.player.name, color: getPlayerColor(s.player.name) }));
+  const certeros = mkW(pstats.filter(s => s.played > 0 && Math.abs(s.hits / s.played - bestRate) < 0.001));
+  const exactos  = mkW(bestExact > 0 ? pstats.filter(s => s.exacts === bestExact) : []);
+  const valientes = mkW(bestContr > 0 ? pstats.filter(s => s.contrHits === bestContr) : []);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+      {/* Trofeos */}
+      <div className="trophy-row">
+        <TrophyCard icon="🎯" label="Más certero" winners={certeros}
+          value={bestRate > 0 ? `${Math.round(bestRate * 100)}%` : "—"} />
+        <TrophyCard icon="⚡" label="Exacto" winners={exactos}
+          value={bestExact > 0 ? `${bestExact} marcador${bestExact !== 1 ? "es" : ""}` : "Ninguno aún"} />
+        <TrophyCard icon="🦁" label="Más atrevido" winners={valientes}
+          value={bestContr > 0 ? `${bestContr} vez${bestContr !== 1 ? "es" : ""}` : "Ninguno aún"} />
+      </div>
+
+      {/* Barra de rendimiento por jugador */}
+      <div className="perf-list">
+        {[...pstats].sort((a, b) => (b.hits / Math.max(b.played, 1)) - (a.hits / Math.max(a.played, 1))).map(s => {
+          const pct = s.played > 0 ? Math.round(s.hits / s.played * 100) : 0;
+          const color = getPlayerColor(s.player.name);
+          return (
+            <div key={s.player.id} className="perf-row">
+              <div className="perf-name">
+                <span className="player-dot" style={{ background: color }} />
+                {s.player.name}
+              </div>
+              <div className="perf-bar-track">
+                <div className="perf-bar-fill" style={{ width:`${pct}%`, background: color }} />
+              </div>
+              <div className="perf-chips">
+                <span className="perf-chip" title="Aciertos / partidos">{s.hits}/{s.played}</span>
+                <span className="perf-chip gold" title="Marcadores exactos">⚡{s.exacts}</span>
+                {s.contrHits > 0 && <span className="perf-chip lime" title="Atrevido y acertó">🦁{s.contrHits}</span>}
+              </div>
+              <div className="perf-pct" style={{ color }}>{pct}%</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Heatmap */}
+      <div>
+        <div className="hm-legend">
+          <span className="hm-dot hmd-exact" /> exacto &nbsp;
+          <span className="hm-dot hmd-hit" /> pase &nbsp;
+          <span className="hm-dot hmd-miss" /> fallo &nbsp;
+          <span className="hm-dot hmd-none" /> sin pred.
+        </div>
+        <div className="hm-wrap">
+          {pstats.map(s => (
+            <div key={s.player.id} className="hm-row">
+              <div className="hm-pname" style={{ color: getPlayerColor(s.player.name) }}>
+                {s.player.name.length > 6 ? s.player.name.slice(0, 5) + "." : s.player.name}
+              </div>
+              <div className="hm-cells">
+                {s.cells.map((cell, ci) => (
+                  <div key={ci} className={`hm-dot hmd-${cell}`}
+                    title={`${done[ci].m[0]} vs ${done[ci].m[1]} · ${cell}`} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="hm-row">
+            <div className="hm-pname" />
+            <div className="hm-cells">
+              {done.map(({ R }, ci) => (
+                <div key={ci} className="hm-rlabel" title={R.name}>
+                  {R.short.slice(0, 2)}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Clasificación ---------------- */
 function Clasificacion({ standings, admin, meId }) {
   const [open, setOpen] = useState(null);
@@ -1359,6 +1515,11 @@ function Clasificacion({ standings, admin, meId }) {
       <section className="card" style={{ padding: "14px 8px 10px" }}>
         <h3>Carrera · posición tras cada partido</h3>
         <CarreraChart admin={admin} players={players} />
+      </section>
+
+      <section className="card" style={{ padding: "14px 12px 14px" }}>
+        <h3>Estadísticas</h3>
+        <StatsPanel standings={standings} admin={admin} />
       </section>
     </div>
   );
@@ -2508,6 +2669,43 @@ const CSS = `
 .lps-winning .lp-pts{color:#2CA02C}
 .lps-winning.lps-exact .lp-pts{color:var(--gold)}
 .lps-losing .lp-pts,.lps-tied .lp-pts,.lps-none .lp-pts{color:var(--muted)}
+
+/* ── Estadísticas ────────────────────────────────────────── */
+.trophy-row{display:flex;gap:8px}
+.trophy-card{
+  flex:1;background:var(--panel2);border:1px solid var(--line);
+  border-radius:12px;padding:10px 8px;text-align:center;
+  display:flex;flex-direction:column;gap:4px;align-items:center;
+}
+.trophy-icon{font-size:22px;line-height:1}
+.trophy-label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.trophy-winners{display:flex;flex-direction:column;gap:2px}
+.trophy-name{font-size:12px;font-weight:900}
+.trophy-empty{color:var(--muted);font-size:12px}
+.trophy-value{font-size:10px;color:var(--muted);line-height:1.3}
+
+.perf-list{display:flex;flex-direction:column;gap:8px}
+.perf-row{display:grid;grid-template-columns:90px 1fr auto 36px;align-items:center;gap:8px}
+.perf-name{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;overflow:hidden;white-space:nowrap}
+.perf-bar-track{height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden}
+.perf-bar-fill{height:100%;border-radius:3px;transition:width .5s}
+.perf-chips{display:flex;gap:4px}
+.perf-chip{font-size:10px;font-weight:800;background:rgba(255,255,255,0.07);padding:2px 6px;border-radius:10px;white-space:nowrap}
+.perf-chip.gold{color:var(--gold)}
+.perf-chip.lime{color:#a3e635}
+.perf-pct{font-size:12px;font-weight:900;text-align:right;font-family:var(--mono)}
+
+.hm-legend{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);margin-bottom:8px;flex-wrap:wrap}
+.hm-wrap{display:flex;flex-direction:column;gap:5px;overflow-x:auto;padding-bottom:4px}
+.hm-row{display:flex;align-items:center;gap:6px}
+.hm-pname{width:54px;font-size:10px;font-weight:800;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hm-cells{display:flex;gap:3px}
+.hm-rlabel{width:17px;font-size:7px;text-align:center;color:rgba(255,255,255,0.22);font-weight:700;flex-shrink:0;line-height:17px}
+.hm-dot{width:17px;height:17px;border-radius:3px;flex-shrink:0}
+.hmd-exact{background:var(--gold)}
+.hmd-hit{background:#2CA02C}
+.hmd-miss{background:#D62728;opacity:.7}
+.hmd-none{background:rgba(255,255,255,0.07)}
 
 @media(max-width:480px){
   .hdr h1{font-size:16px;letter-spacing:.08em}
