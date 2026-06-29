@@ -968,6 +968,71 @@ function buildHistory(players, admin) {
   return { histories, events };
 }
 
+/* ---------------- Countdown al próximo partido ---------------- */
+function parseMatchDateTime(dateStr, timeStr) {
+  const [day, mon] = dateStr.split(" ");
+  const month = mon === "Jun" ? 5 : 6; // 0-indexed
+  const [h, m] = timeStr.split(":").map(Number);
+  return new Date(Date.UTC(2026, month, parseInt(day), h - 2, m, 0)); // CEST = UTC+2
+}
+
+function findNextMatch(admin) {
+  const now = new Date();
+  let next = null;
+  for (const origIdx of R32_DATE_ORDER) {
+    const id = matchId("r32", origIdx);
+    const res = admin.results?.[id];
+    const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+    const live = res && res.live && !resolved;
+    if (resolved || live) continue;
+    const dateStr = R32_DATES[origIdx];
+    const timeStr = R32_TIMES[origIdx];
+    if (!dateStr || !timeStr) continue;
+    const kickoff = parseMatchDateTime(dateStr, timeStr);
+    if (kickoff > now && (!next || kickoff < next.kickoff))
+      next = { kickoff, teams: R32[origIdx], dateStr, timeStr };
+  }
+  return next;
+}
+
+function NextMatchCountdown({ admin }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const next = findNextMatch(admin);
+  if (!next) return null;
+  const diff = next.kickoff - now;
+  if (diff <= 0) return null;
+
+  const days  = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins  = Math.floor((diff % 3600000) / 60000);
+  const secs  = Math.floor((diff % 60000) / 1000);
+
+  return (
+    <div className="cd-panel">
+      <div className="cd-top">
+        <span className="cd-label">Próximo partido</span>
+        <span className="cd-when">{next.dateStr} · {next.timeStr}h</span>
+      </div>
+      <div className="cd-teams">
+        <span className="cd-team"><Flag country={next.teams[0]} size={18} />{next.teams[0]}</span>
+        <span className="cd-vs">vs</span>
+        <span className="cd-team"><Flag country={next.teams[1]} size={18} />{next.teams[1]}</span>
+      </div>
+      <div className="cd-timer">
+        {days > 0 && <div className="cd-unit"><b>{days}</b><span>d</span></div>}
+        <div className="cd-unit"><b>{String(hours).padStart(2,"0")}</b><span>h</span></div>
+        <div className="cd-unit"><b>{String(mins).padStart(2,"0")}</b><span>m</span></div>
+        <div className="cd-unit"><b>{String(secs).padStart(2,"0")}</b><span>s</span></div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Live Match Panel ---------------- */
 function LiveCard({ R, m, id, res, players }) {
   const h = Number(res.h), a = Number(res.a);
@@ -1050,7 +1115,7 @@ function LiveMatchPanel({ admin, players }) {
       }
     });
   }
-  if (!liveMatches.length) return null;
+  if (!liveMatches.length) return <NextMatchCountdown admin={admin} />;
   return (
     <div className="live-panel">
       {liveMatches.map((lm) => (
@@ -1285,6 +1350,78 @@ function CarreraChart({ admin, players }) {
   );
 }
 
+/* ---------------- Bracket / Cuadro ---------------- */
+function BracketMatch({ m, res }) {
+  const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+  const live = res && res.live && !resolved;
+  return (
+    <div className={`bm${resolved ? " bm-done" : live ? " bm-live" : ""}`}>
+      <div className={`bteam${resolved ? res.adv === m[0] ? " bw" : " bl" : ""}`}>
+        <Flag country={m[0]} size={13} />
+        <span className="bname">{m[0]}</span>
+        {(resolved || live) && <span className="bsc">{res.h}</span>}
+      </div>
+      <div className={`bteam${resolved ? res.adv === m[1] ? " bw" : " bl" : ""}`}>
+        <Flag country={m[1]} size={13} />
+        <span className="bname">{m[1]}</span>
+        {(resolved || live) && <span className="bsc">{res.a}</span>}
+      </div>
+      {live && (
+        <div className="bm-live-bar">
+          <span className="live-dot" /><span style={{fontSize:9,fontWeight:900,color:"var(--red)",letterSpacing:".05em"}}>EN VIVO</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BracketView({ admin }) {
+  const [active, setActive] = useState(admin.openRound || "r32");
+  const R = ROUNDS.find(r => r.id === active) || ROUNDS[0];
+  const fx = fixturesFor(admin, R.id);
+
+  return (
+    <div>
+      {/* Round chips */}
+      <div className="chips" style={{ marginBottom:12 }}>
+        {ROUNDS.map(r => {
+          const fxr = fixturesFor(admin, r.id);
+          const hasData = fxr.length > 0;
+          return (
+            <button
+              key={r.id}
+              className={active === r.id ? "chip on" : "chip"}
+              onClick={() => setActive(r.id)}
+              style={!hasData ? { opacity:.4 } : undefined}
+            >
+              {r.short}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Round header */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+        <span style={{ fontSize:13, fontWeight:900, textTransform:"uppercase", letterSpacing:".06em" }}>{R.name}</span>
+        <span className="mult">×{R.mult}</span>
+      </div>
+
+      {/* Matches */}
+      {fx.length === 0 ? (
+        <p className="mini muted center" style={{ padding:"12px 0" }}>Los cruces de {R.name.toLowerCase()} aún no están cargados.</p>
+      ) : (
+        <div className={`bracket-grid${fx.length <= 2 ? " bracket-single" : ""}`}>
+          {fx.map((m, i) => {
+            const id = matchId(R.id, i);
+            const res = admin.results?.[id];
+            return <BracketMatch key={id} m={m} res={res} />;
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- Clasificación ---------------- */
 function Clasificacion({ standings, admin, meId }) {
   const [open, setOpen] = useState(null);
@@ -1359,6 +1496,11 @@ function Clasificacion({ standings, admin, meId }) {
       <section className="card" style={{ padding: "14px 8px 10px" }}>
         <h3>Carrera · posición tras cada partido</h3>
         <CarreraChart admin={admin} players={players} />
+      </section>
+
+      <section className="card" style={{ padding: "14px 12px 14px" }}>
+        <h3>Cuadro del torneo</h3>
+        <BracketView admin={admin} />
       </section>
 
     </div>
@@ -2509,6 +2651,51 @@ const CSS = `
 .lps-winning .lp-pts{color:#2CA02C}
 .lps-winning.lps-exact .lp-pts{color:var(--gold)}
 .lps-losing .lp-pts,.lps-tied .lp-pts,.lps-none .lp-pts{color:var(--muted)}
+
+/* ── Countdown ───────────────────────────────────────────── */
+.cd-panel{
+  margin:0 12px 4px;padding:14px 16px;
+  background:linear-gradient(135deg,#071a09,#041209);
+  border:1px solid rgba(100,200,100,.2);border-radius:14px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.cd-top{display:flex;align-items:center;justify-content:space-between}
+.cd-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.cd-when{font-size:11px;font-weight:700;color:var(--green)}
+.cd-teams{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+.cd-team{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800}
+.cd-vs{font-size:11px;color:var(--muted);font-weight:700}
+.cd-timer{display:flex;justify-content:center;gap:12px}
+.cd-unit{display:flex;flex-direction:column;align-items:center;min-width:42px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+  border-radius:10px;padding:8px 4px 6px}
+.cd-unit b{font-size:24px;font-weight:900;font-family:var(--mono);color:#fff;line-height:1;font-variant-numeric:tabular-nums}
+.cd-unit span{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+/* ── Bracket ─────────────────────────────────────────────── */
+.bracket-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bracket-single{grid-template-columns:1fr}
+.bm{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;
+}
+.bm-done{border-color:rgba(100,180,100,.2)}
+.bm-live{border-color:rgba(248,113,113,.35);border-top:2px solid var(--red)}
+.bteam{
+  display:flex;align-items:center;gap:7px;
+  padding:8px 10px;font-size:11px;font-weight:600;
+  border-bottom:1px solid var(--line);
+}
+.bteam:last-of-type{border-bottom:0}
+.bname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bsc{font-family:var(--mono);font-size:14px;font-weight:900;color:var(--green);margin-left:auto;flex-shrink:0}
+.bw{background:rgba(44,160,44,.13);font-weight:900;color:#fff}
+.bw .bsc{color:var(--gold)}
+.bl{opacity:.38}
+.bm-live-bar{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 10px;background:rgba(248,113,113,.07);
+}
 
 @media(max-width:480px){
   .hdr h1{font-size:16px;letter-spacing:.08em}
