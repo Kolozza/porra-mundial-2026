@@ -26,6 +26,18 @@ const PLENO = { r32: 8, r16: 5, qf: 3 };
 const BONUS_TOTAL =
   BONUS.champion + BONUS.pichichi + PLENO.r32 + PLENO.r16 + PLENO.qf; // 41
 
+/* ── Fotos de porteros (penalty game) ───────────────────── */
+const GOALIE_PHOTOS = {
+  "Alex": "/players/alex.jpg",
+  "Ray":  "/players/ray.jpg",
+  "Mati": "/players/mati.jpg",
+};
+const GOALIE_PHOTO_POS = {
+  "Alex": "center 20%",
+  "Ray":  "center 10%",
+  "Mati": "center 15%",
+};
+
 /* ── Canciones por jugador (YouTube video IDs) ─────────── */
 const PLAYER_SONGS = {
   "Mati":    "UeFC_9oGqWg", // Los Palmeras - Bombón Asesino
@@ -391,6 +403,148 @@ export default function Root() {
   return <MainApp />;
 }
 
+/* ── Penalty Game ────────────────────────────────────────── */
+const PG_BALL_BASE = { bottom:"8%", left:"50%", transform:"translate(-50%,0) scale(1)" };
+
+function PenaltyGame({ players }) {
+  const allNames = (players || []).map(p => p.name);
+  const [goalie, setGoalie] = useState(allNames[0] || "Alex");
+  const [hits,   setHits]   = useState(0);
+  const [goals,  setGoals]  = useState(0);
+  const [phase,  setPhase]  = useState("aim");   // aim | flying | result
+  const [result, setResult] = useState(null);    // "hit" | "goal"
+  const [ball,   setBall]   = useState(PG_BALL_BASE);
+  const [offset, setOffset] = useState(0);       // goalie dive px
+  const [shake,  setShake]  = useState(false);
+
+  const reset = () => {
+    setHits(0); setGoals(0); setPhase("aim"); setResult(null);
+    setBall(PG_BALL_BASE); setOffset(0); setShake(false);
+  };
+
+  const changeGoalie = (n) => { setGoalie(n); reset(); };
+
+  const kick = (zone) => {
+    if (phase !== "aim") return;
+    setPhase("flying");
+    const isGoal = Math.random() < 0.10;
+    const cornerLeft = zone === 0 ? "16%" : "84%";
+
+    // Ball flies toward face (hit) or corner (goal)
+    setBall({
+      bottom: "60%",
+      left: isGoal ? cornerLeft : "50%",
+      transform: "translate(-50%,0) scale(0.45)",
+      transition: "bottom .45s cubic-bezier(.3,0,.5,1),left .45s ease,transform .45s ease",
+    });
+
+    // On goal: goalie dives the WRONG way
+    if (isGoal) setTimeout(() => setOffset(zone === 0 ? 60 : -60), 120);
+
+    setTimeout(() => {
+      setResult(isGoal ? "goal" : "hit");
+      setPhase("result");
+      if (!isGoal) { setHits(h => h + 1); setShake(true); setTimeout(() => setShake(false), 750); }
+      else setGoals(g => g + 1);
+    }, 480);
+
+    setTimeout(() => {
+      setBall({ ...PG_BALL_BASE, transition:"all .35s ease" });
+      setOffset(0); setPhase("aim"); setResult(null);
+    }, 2600);
+  };
+
+  const dmg  = Math.min(hits, 5);
+  const photo = GOALIE_PHOTOS[goalie];
+  const pos   = GOALIE_PHOTO_POS[goalie] || "center 15%";
+
+  return (
+    <div className="pane pg-wrap">
+      {/* Scoreboard */}
+      <div className="pg-board">
+        <div className="pg-sb"><span className="pg-sb-n">{goals}</span><span className="pg-sb-l">Goles</span></div>
+        <div className="pg-sb-sep">·</div>
+        <div className="pg-sb"><span className="pg-sb-n">{hits}</span><span className="pg-sb-l">Golpes en cara</span></div>
+      </div>
+
+      {/* Goalie selector */}
+      <div className="pg-sel-row">
+        <span className="pg-sel-lbl">Portero</span>
+        <div className="pg-sel-chips">
+          {allNames.map(n => (
+            <button key={n} className={`pg-chip${goalie === n ? " on" : ""}`} onClick={() => changeGoalie(n)}>{n}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Field */}
+      <div className="pg-field">
+        {/* Goal */}
+        <div className="pg-posts">
+          <div className="pg-net" />
+          {/* Goalie */}
+          <div
+            className={`pg-goalie${shake ? " pg-shake" : ""}`}
+            style={offset !== 0 ? { transform:`translate(calc(-50% + ${offset}px),-50%)`, transition:"transform .2s ease-out" } : undefined}
+          >
+            <div className="pg-face" style={photo ? { backgroundImage:`url(${photo})`, backgroundPosition:pos, backgroundSize:"cover" } : {}}>
+              {!photo && <span className="pg-initial">{goalie[0]}</span>}
+              {dmg >= 1 && <div className="pg-dmg pg-d1" />}
+              {dmg >= 2 && <div className="pg-dmg pg-d2" />}
+              {dmg >= 3 && <div className="pg-dmg pg-d3" />}
+              {dmg >= 4 && <div className="pg-dmg pg-d4" />}
+              {dmg >= 5 && <div className="pg-dmg pg-d5" />}
+            </div>
+            {result === "hit"  && <div className="pg-fx">💥</div>}
+            {result === "goal" && <div className="pg-fx">🤦</div>}
+            <div className="pg-gtag">{goalie}</div>
+          </div>
+        </div>
+
+        {/* Ball */}
+        <div className="pg-ball" style={ball}>⚽</div>
+
+        {/* Penalty spot & arc */}
+        <div className="pg-spot" />
+        <div className="pg-arc" />
+      </div>
+
+      {/* Aim buttons */}
+      {phase === "aim" && (
+        <div className="pg-controls">
+          <div className="pg-hint">¿Dónde chulas?</div>
+          <div className="pg-aim">
+            <button className="pg-kick" onClick={() => kick(0)}>◀</button>
+            <button className="pg-kick pg-kick-mid" onClick={() => kick(1)}>▲ Centro</button>
+            <button className="pg-kick" onClick={() => kick(2)}>▶</button>
+          </div>
+        </div>
+      )}
+
+      {/* Result */}
+      {phase === "result" && (
+        <div className={`pg-result-msg${result === "goal" ? " pg-r-goal" : " pg-r-hit"}`}>
+          {result === "hit"
+            ? (dmg >= 5 ? "🩸🩸 CARA DESTROZADA 🩸🩸" : "😵 ¡LE DIO EN LA CARA!")
+            : "⚽ ¡¡GOOOL!! ¡Se le escapó!"}
+        </div>
+      )}
+
+      {/* Blood meter */}
+      <div className="pg-meter">
+        {[1,2,3,4,5].map(i => <span key={i} className={`pg-drop${i <= dmg ? " on" : ""}`}>🩸</span>)}
+      </div>
+
+      {dmg >= 5 && phase === "aim" && (
+        <div style={{ textAlign:"center" }}>
+          <p style={{ fontSize:12, color:"var(--muted)", marginBottom:8 }}>¡{goalie} necesita un médico! 🏥</p>
+          <button className="btn" onClick={reset}>🔄 Nueva tanda</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── MusicPlayer ─────────────────────────────────────────── */
 function MusicPlayer({ me }) {
   const [playing, setPlaying] = useState(false);
@@ -603,6 +757,7 @@ function MainApp() {
           ["jugar", "Jugar"],
           ["clasi", "Clasificación"],
           ["picks", "Picks"],
+          ["juego", "⚽"],
           ["reglas", "Reglas"],
         ].map(([id, label]) => (
           <button
@@ -626,6 +781,8 @@ function MainApp() {
             <Clasificacion standings={standings} admin={admin} meId={meId} />
           ) : tab === "picks" ? (
             <Picks admin={admin} standings={standings} meId={meId} />
+          ) : tab === "juego" ? (
+            <PenaltyGame players={players} />
           ) : (
             <Reglas />
           )}
@@ -2928,6 +3085,62 @@ const CSS = `
   display:flex;align-items:center;gap:5px;
   padding:4px 10px;background:rgba(248,113,113,.07);
 }
+
+/* ── Penalty Game ────────────────────────────────────────── */
+.pg-wrap{gap:16px}
+.pg-board{display:flex;align-items:center;justify-content:center;gap:20px;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.pg-sb{display:flex;flex-direction:column;align-items:center;gap:1px}
+.pg-sb-n{font-size:30px;font-weight:900;font-family:var(--mono);color:#fff;line-height:1}
+.pg-sb-l{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.pg-sb-sep{font-size:22px;color:var(--line);font-weight:300}
+.pg-sel-row{display:flex;flex-direction:column;gap:6px}
+.pg-sel-lbl{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.pg-sel-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pg-chip{font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer;transition:all .15s}
+.pg-chip.on{background:linear-gradient(135deg,#2a4a30,#3d6645);color:#fff;border-color:rgba(200,220,200,.3)}
+.pg-field{position:relative;width:100%;height:250px;background:linear-gradient(180deg,#081808 0%,#0a2210 55%,#0d2e14 100%);border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.06)}
+/* Field lines */
+.pg-field::after{content:'';position:absolute;bottom:0;left:0;right:0;height:36%;border-top:1.5px solid rgba(255,255,255,.12);border-radius:0}
+.pg-posts{position:absolute;top:7%;left:13%;right:13%;height:50%;border:3.5px solid #fff;border-bottom:none;box-shadow:0 0 16px rgba(255,255,255,.15)}
+.pg-net{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.07) 0,rgba(255,255,255,.07) 1px,transparent 1px,transparent 20px),repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0,rgba(255,255,255,.07) 1px,transparent 1px,transparent 20px)}
+.pg-goalie{position:absolute;top:52%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
+.pg-shake{animation:pgShake .65s ease}
+@keyframes pgShake{0%,100%{transform:translate(-50%,-50%) rotate(0)} 15%{transform:translate(calc(-50% - 11px),-50%) rotate(-11deg)} 30%{transform:translate(calc(-50% + 11px),-50%) rotate(11deg)} 50%{transform:translate(calc(-50% - 7px),-50%) rotate(-6deg)} 70%{transform:translate(calc(-50% + 7px),-50%) rotate(6deg)} 85%{transform:translate(calc(-50% - 3px),-50%) rotate(-2deg)}}
+.pg-face{width:76px;height:76px;border-radius:50%;border:3px solid rgba(255,255,255,.22);background-color:var(--panel2);background-size:cover;position:relative;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.6)}
+.pg-initial{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;color:var(--green)}
+.pg-gtag{font-size:10px;font-weight:800;color:rgba(255,255,255,.7);text-shadow:0 1px 4px rgba(0,0,0,.9)}
+/* Damage overlays */
+.pg-dmg{position:absolute;pointer-events:none}
+.pg-d1{width:26px;height:17px;border-radius:50%;top:25%;left:5%;background:rgba(160,20,20,.58);filter:blur(4px)}
+.pg-d2{width:26px;height:17px;border-radius:50%;top:25%;right:5%;background:rgba(160,20,20,.58);filter:blur(4px)}
+.pg-d3{width:5px;height:28px;border-radius:3px;top:50%;left:calc(50% - 2px);background:linear-gradient(180deg,rgba(200,10,10,.92),rgba(200,10,10,.1));filter:blur(1px)}
+.pg-d4{width:100%;height:58%;bottom:0;left:0;border-radius:0 0 50% 50%;background:rgba(170,10,10,.3);filter:blur(2px)}
+.pg-d5{width:100%;height:100%;top:0;left:0;border-radius:50%;background:rgba(200,10,10,.44);animation:pgPulse 1.1s ease-in-out infinite}
+@keyframes pgPulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* Impact fx */
+.pg-fx{position:absolute;font-size:24px;top:-28px;left:50%;transform:translateX(-50%);animation:pgFx .8s ease-out forwards;pointer-events:none}
+@keyframes pgFx{0%{transform:translateX(-50%) scale(0);opacity:1}55%{transform:translateX(-50%) scale(1.5);opacity:1}100%{transform:translateX(-50%) scale(1.1);opacity:0}}
+/* Ball */
+.pg-ball{position:absolute;font-size:32px;line-height:1;z-index:4;filter:drop-shadow(0 3px 8px rgba(0,0,0,.7))}
+/* Markings */
+.pg-spot{position:absolute;bottom:18%;left:50%;transform:translateX(-50%);width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45)}
+.pg-arc{position:absolute;bottom:16%;left:50%;transform:translateX(-50%);width:90px;height:45px;border:1.5px solid rgba(255,255,255,.18);border-bottom:none;border-radius:90px 90px 0 0}
+/* Controls */
+.pg-controls{display:flex;flex-direction:column;align-items:center;gap:10px}
+.pg-hint{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.pg-aim{display:flex;gap:10px;align-items:center}
+.pg-kick{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#1a3a22,#2e5c38);border:1px solid rgba(200,220,200,.2);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .1s,box-shadow .15s;box-shadow:0 3px 10px rgba(0,0,0,.45)}
+.pg-kick:active{transform:scale(.87)}
+.pg-kick-mid{width:auto;padding:0 18px;border-radius:27px;font-size:13px;font-weight:800}
+/* Result */
+.pg-result-msg{text-align:center;font-size:15px;font-weight:900;padding:10px 20px;border-radius:20px;letter-spacing:.03em;animation:pgFx .3s ease-out}
+.pg-r-hit{background:rgba(220,40,40,.14);color:#ff6060;border:1px solid rgba(220,40,40,.28)}
+.pg-r-goal{background:rgba(44,160,44,.14);color:var(--green);border:1px solid rgba(44,160,44,.28)}
+/* Blood meter */
+.pg-meter{display:flex;gap:8px;justify-content:center}
+.pg-drop{font-size:24px;opacity:.12;transition:opacity .3s,transform .3s}
+.pg-drop.on{opacity:1;animation:pgDrop .4s ease-out}
+@keyframes pgDrop{0%{transform:scale(0)}70%{transform:scale(1.5)}100%{transform:scale(1)}}
 
 /* ── Botón de música flotante ────────────────────────────── */
 .music-btn{
