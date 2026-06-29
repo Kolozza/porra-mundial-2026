@@ -1287,6 +1287,7 @@ function LiveCard({ R, m, id, res, players }) {
 }
 
 function LiveMatchPanel({ admin, players }) {
+  const now = new Date();
   const liveMatches = [];
   for (const R of ROUNDS) {
     const fx = fixturesFor(admin, R.id);
@@ -1298,14 +1299,33 @@ function LiveMatchPanel({ admin, players }) {
       }
     });
   }
-  if (!liveMatches.length) return <NextMatchCountdown admin={admin} players={players} />;
-  return (
-    <div className="live-panel">
-      {liveMatches.map((lm) => (
-        <LiveCard key={lm.id} {...lm} players={players} />
-      ))}
-    </div>
-  );
+
+  // Si hay partido en marcha (marcado como live), prevalece sobre el countdown
+  if (liveMatches.length) {
+    return (
+      <div className="live-panel">
+        {liveMatches.map((lm) => (
+          <LiveCard key={lm.id} {...lm} players={players} />
+        ))}
+      </div>
+    );
+  }
+
+  // Aunque no esté marcado como live, si el kickoff ya pasó y no está resuelto,
+  // ocultamos el countdown (partido en marcha sin actualizar aún)
+  const anyStarted = R32_DATE_ORDER.some(origIdx => {
+    const id = matchId("r32", origIdx);
+    const res = admin.results?.[id];
+    const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+    if (resolved) return false;
+    const dateStr = R32_DATES[origIdx];
+    const timeStr = R32_TIMES[origIdx];
+    if (!dateStr || !timeStr) return false;
+    return parseMatchDateTime(dateStr, timeStr) <= now;
+  });
+
+  if (anyStarted) return null;
+  return <NextMatchCountdown admin={admin} players={players} />;
 }
 
 function CarreraChart({ admin, players }) {
