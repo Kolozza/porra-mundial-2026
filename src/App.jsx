@@ -36,7 +36,7 @@ const PLAYER_SONGS = {
   "Canario": "yx2hlHq7b7U", // Himno Nacional de España
   "Mocete":  "yx2hlHq7b7U",
   "Ivan":    "yx2hlHq7b7U",
-  "Niko":    "yx2hlHq7b7U",
+  "Niko":    "vTkN9-nQPKw", // Bombón Asesino
   "Gentjan": "d76REwyqtsM", // Albanian National Anthem
   "Ray":     "YnopHCL1Jk8", // O-Zone - Dragostea Din Tei
   "Alex":    "YnopHCL1Jk8",
