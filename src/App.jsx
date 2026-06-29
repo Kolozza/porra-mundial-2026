@@ -703,8 +703,71 @@ function Jugar({ admin, me, onSave }) {
   const save = () =>
     onSave(draft.champion, draft.pichichi, round.id, draft.preds[round.id] || {}, champLocked);
 
+  const displayMatches = round.id === "r32"
+    ? R32_DATE_ORDER.map(origIdx => ({
+        m: fx[origIdx],
+        id: matchId(round.id, origIdx),
+        dateStr: R32_DATES[origIdx],
+        timeStr: R32_TIMES[origIdx],
+      }))
+    : fx.map((m, i) => ({ m, id: matchId(round.id, i), dateStr: null, timeStr: null }));
+
   return (
     <div className="pane">
+      <div className="round-banner">
+        <div>
+          <h2>{round.name}</h2>
+          <span className="mult">multiplicador x{round.mult}</span>
+        </div>
+        {locked && <span className="locked-pill">cerrada</span>}
+      </div>
+
+      {fx.length === 0 ? (
+        <div className="empty">
+          Los cruces de {round.name.toLowerCase()} aún no están cargados. El admin los
+          añade en la pestaña Admin cuando se conozcan.
+        </div>
+      ) : (
+        <div className="matches">
+          {displayMatches.map(({ m, id, dateStr, timeStr }, renderIdx) => {
+            const prevDate = renderIdx > 0 ? displayMatches[renderIdx - 1].dateStr : null;
+            const showDate = dateStr && dateStr !== prevDate;
+            const p = draft.preds[round.id]?.[id] || { h: "", a: "", adv: "" };
+            const isDraw = p.h !== "" && p.a !== "" && Number(p.h) === Number(p.a);
+            const res = admin.results?.[id];
+            return (
+              <React.Fragment key={id}>
+                {showDate && (
+                  <div className="date-header">
+                    {dateStr}
+                    {timeStr && <span className="date-header-time"> · {timeStr}h</span>}
+                  </div>
+                )}
+                <MatchRow
+                  home={m[0]}
+                  away={m[1]}
+                  pred={p}
+                  draw={isDraw}
+                  locked={locked}
+                  onScore={(side, v) =>
+                    setPred(id, { [side]: v === "" ? "" : Math.max(0, Number(v)) })
+                  }
+                  onAdv={(team) => setPred(id, { adv: team })}
+                  result={res}
+                  roundMult={round.mult}
+                />
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+
+      {!locked && fx.length > 0 && (
+        <button className="btn big" onClick={save}>
+          Guardar mis pronósticos
+        </button>
+      )}
+
       <section className="champ-pick">
         <div className="champ-head">
           <span className="gold">★</span> Apuestas de futuro
@@ -746,57 +809,24 @@ function Jugar({ admin, me, onSave }) {
           <p className="mini muted">Las apuestas de futuro se bloquean al cerrar dieciseisavos.</p>
         )}
       </section>
-
-      <div className="round-banner">
-        <div>
-          <h2>{round.name}</h2>
-          <span className="mult">multiplicador x{round.mult}</span>
-        </div>
-        {locked && <span className="locked-pill">cerrada</span>}
-      </div>
-
-      {fx.length === 0 ? (
-        <div className="empty">
-          Los cruces de {round.name.toLowerCase()} aún no están cargados. El admin los
-          añade en la pestaña Admin cuando se conozcan.
-        </div>
-      ) : (
-        <div className="matches">
-          {fx.map((m, i) => {
-            const id = matchId(round.id, i);
-            const p = draft.preds[round.id]?.[id] || { h: "", a: "", adv: "" };
-            const isDraw =
-              p.h !== "" && p.a !== "" && Number(p.h) === Number(p.a);
-            return (
-              <MatchRow
-                key={id}
-                home={m[0]}
-                away={m[1]}
-                pred={p}
-                draw={isDraw}
-                locked={locked}
-                onScore={(side, v) =>
-                  setPred(id, { [side]: v === "" ? "" : Math.max(0, Number(v)) })
-                }
-                onAdv={(team) => setPred(id, { adv: team })}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {!locked && fx.length > 0 && (
-        <button className="btn big" onClick={save}>
-          Guardar mis pronósticos
-        </button>
-      )}
     </div>
   );
 }
 
-function MatchRow({ home, away, pred, draw, locked, onScore, onAdv }) {
+function MatchRow({ home, away, pred, draw, locked, onScore, onAdv, result, roundMult }) {
+  const resolved = result && result.adv != null && result.h !== "" && result.a !== "";
+  const hasPred = pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
+
+  let advOk = null, scoreOk = null, pts = null;
+  if (resolved && hasPred) {
+    const pa = predAdv(pred, home, away);
+    advOk = pa === result.adv;
+    scoreOk = Number(pred.h) === Number(result.h) && Number(pred.a) === Number(result.a);
+    pts = ((advOk ? 3 : 0) + (scoreOk ? 2 : 0)) * (roundMult || 1);
+  }
+
   return (
-    <div className="match">
+    <div className={`match${resolved ? " match-played" : ""}`}>
       <div className="m-team left">
         <span className="team-name">{home}</span>
         <Flag country={home} />
@@ -839,6 +869,25 @@ function MatchRow({ home, away, pred, draw, locked, onScore, onAdv }) {
           >
             {away}
           </button>
+        </div>
+      )}
+      {resolved && (
+        <div className="match-result">
+          {hasPred ? (
+            <>
+              <span className={`mr-badge${advOk ? " ok" : " miss"}`}>
+                {advOk ? "✓" : "✗"} Clasif.
+              </span>
+              <span className={`mr-badge${scoreOk ? " ok" : " miss"}`}>
+                {scoreOk ? "✓" : "✗"} Marcador
+              </span>
+              <span className={`mr-pts${pts > 0 ? " pts-ok" : " pts-zero"}`}>
+                +{pts} pt{pts !== 1 ? "s" : ""}
+              </span>
+            </>
+          ) : (
+            <span className="mr-badge miss">Sin pronóstico · +0 pts</span>
+          )}
         </div>
       )}
     </div>
@@ -1015,12 +1064,22 @@ function NextMatchCountdown({ admin, players }) {
   const showPreds = diff < 3600000; // menos de 1 hora
   const preds = showPreds && players
     ? [...players]
+        .sort((a, b) => {
+          const sa = scorePlayer(a, admin).total;
+          const sb = scorePlayer(b, admin).total;
+          return sb - sa || a.name.localeCompare(b.name, "es");
+        })
         .map(p => {
           const pred = p.preds?.["r32"]?.[next.id];
           const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
-          return { name: p.name, h: hasPred ? pred.h : null, a: hasPred ? pred.a : null };
+          const adv = hasPred ? (pred.adv || predAdv(pred, next.teams[0], next.teams[1])) : null;
+          return {
+            name: p.name,
+            h: hasPred ? pred.h : null,
+            a: hasPred ? pred.a : null,
+            adv,
+          };
         })
-        .sort((a, b) => a.name.localeCompare(b.name, "es"))
     : null;
 
   return (
@@ -1044,12 +1103,17 @@ function NextMatchCountdown({ admin, players }) {
         <div className="cd-preds">
           <div className="cd-preds-title">Pronósticos</div>
           <div className="cd-preds-list">
-            {preds.map(({ name, h, a }) => (
+            {preds.map(({ name, h, a, adv }) => (
               <div key={name} className="cd-pred-row">
                 <span className="cd-pred-name">{name}</span>
-                {h != null
-                  ? <span className="cd-pred-score">{h} – {a}</span>
-                  : <span className="cd-pred-none">—</span>}
+                {h != null ? (
+                  <span className="cd-pred-score">
+                    {h} – {a}
+                    {adv && <><span className="cd-pred-arrow"> → </span><Flag country={adv} size={13} /></>}
+                  </span>
+                ) : (
+                  <span className="cd-pred-none">—</span>
+                )}
               </div>
             ))}
           </div>
@@ -2369,6 +2433,14 @@ const CSS = `
   background:rgba(255,61,90,.08);
 }
 
+/* ── Date headers ───────────────────────────────────────── */
+.date-header{
+  font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);padding:2px 4px;
+  border-left:2px solid var(--green-dim);
+}
+.date-header-time{color:var(--green);font-variant-numeric:tabular-nums}
+
 /* ── Partidos ────────────────────────────────────────────── */
 .matches{display:flex;flex-direction:column;gap:10px}
 .match{
@@ -2425,6 +2497,25 @@ const CSS = `
   color:#fff;border-color:rgba(200,220,200,.4);
   box-shadow:none;
 }
+
+/* ── Resultado de partido ────────────────────────────────── */
+.match-played{border-left-color:rgba(100,200,100,.35)}
+.match-result{
+  grid-column:1/-1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  margin-top:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);
+}
+.mr-badge{
+  font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;
+  letter-spacing:.04em;
+}
+.mr-badge.ok{background:rgba(44,160,44,.18);color:#7ecf7e;border:1px solid rgba(44,160,44,.3)}
+.mr-badge.miss{background:rgba(248,113,113,.1);color:rgba(248,113,113,.7);border:1px solid rgba(248,113,113,.2)}
+.mr-pts{margin-left:auto;font-size:12px;font-weight:900;font-family:var(--mono)}
+.mr-pts.pts-ok{color:var(--gold)}
+.mr-pts.pts-zero{color:var(--muted)}
+
+/* ── cd-pred-arrow ───────────────────────────────────────── */
+.cd-pred-arrow{color:var(--muted);font-size:10px;margin:0 2px}
 
 /* ── Botones ─────────────────────────────────────────────── */
 .btn{
