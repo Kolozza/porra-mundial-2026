@@ -1118,6 +1118,27 @@ function CarreraChart({ admin, players }) {
   // Draw worst positions first so leader renders on top
   const drawOrder = [...histories].sort((a, b) => finalPos[b.player.id] - finalPos[a.player.id]);
 
+  // Spread labels of tied players so they don't overlap
+  const LABEL_GAP = 13;
+  const sortedForLabels = [...histories].sort((a, b) => {
+    const d = finalPos[a.player.id] - finalPos[b.player.id];
+    return d !== 0 ? d : a.player.name.localeCompare(b.player.name, "es");
+  });
+  const labelYMap = {};
+  let li = 0;
+  while (li < sortedForLabels.length) {
+    let lj = li;
+    const sharedPos = finalPos[sortedForLabels[li].player.id];
+    while (lj < sortedForLabels.length && finalPos[sortedForLabels[lj].player.id] === sharedPos) lj++;
+    const groupSize = lj - li;
+    const centerY = ys(sharedPos);
+    const totalSpan = (groupSize - 1) * LABEL_GAP;
+    for (let k = 0; k < groupSize; k++) {
+      labelYMap[sortedForLabels[li + k].player.id] = centerY - totalSpan / 2 + k * LABEL_GAP;
+    }
+    li = lj;
+  }
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
       {/* Background */}
@@ -1175,20 +1196,21 @@ function CarreraChart({ admin, players }) {
         );
       })}
 
-      {/* End dots + labels */}
+      {/* End dots + labels (labels spread when tied) */}
       {histories.map(({ player }) => {
         const color = getPlayerColor(player.name);
         const pos = finalPos[player.id];
         const score = finalScore[player.id];
         const cx = xs(steps);
         const cy = ys(pos);
+        const ly = labelYMap[player.id];
         return (
           <g key={player.id}>
             <circle cx={cx} cy={cy} r="3.5" fill={color}
               style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
-            <line x1={cx + 4} y1={cy} x2={cx + 9} y2={cy}
-              stroke={color} strokeWidth="0.8" opacity="0.4" />
-            <text x={cx + 11} y={cy + 4} fontSize="10" fill={color} fontWeight="800">
+            <line x1={cx + 4} y1={cy} x2={cx + 9} y2={ly}
+              stroke={color} strokeWidth="0.8" opacity="0.45" />
+            <text x={cx + 11} y={ly + 4} fontSize="10" fill={color} fontWeight="800">
               {player.name}
               <tspan fontSize="8" opacity="0.55" dx="3">{score}p</tspan>
             </text>
