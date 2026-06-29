@@ -34,8 +34,8 @@ const PLAYER_SONGS = {
   "Flo":     "pw4hP6lgrP4", // Erika - German March
   "Erika":   "pw4hP6lgrP4",
   "Canario": "yx2hlHq7b7U", // Himno Nacional de España
-  "Mocete":  "yx2hlHq7b7U",
-  "Ivan":    "yx2hlHq7b7U",
+  "Mocete":  "2E1p-xSCTKM", // Cara al Sol - Himno de la Falange
+  "Ivan":    "2E1p-xSCTKM",
   "Niko":    "vTkN9-nQPKw", // Bombón Asesino
   "Gentjan": "d76REwyqtsM", // Albanian National Anthem
   "Ray":     "YnopHCL1Jk8", // O-Zone - Dragostea Din Tei
