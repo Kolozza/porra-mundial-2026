@@ -1054,6 +1054,8 @@ function LiveMatchPanel({ admin, players }) {
 }
 
 function CarreraChart({ admin, players }) {
+  const [sel, setSel] = useState(null); // null = todos visibles; Set = IDs visibles
+
   const { histories, events } = buildHistory(players, admin);
 
   if (!events.length)
@@ -1063,6 +1065,22 @@ function CarreraChart({ admin, players }) {
       </p>
     );
 
+  const isVisible = (id) => sel === null || sel.has(id);
+
+  const togglePlayer = (id) => {
+    setSel(prev => {
+      if (prev === null) return new Set([id]);
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        return next.size === 0 ? null : next;
+      } else {
+        next.add(id);
+        return next.size === players.length ? null : next;
+      }
+    });
+  };
+
   const W = 580, H = 220;
   const pad = { t: 28, r: 94, b: 16, l: 22 };
   const iW = W - pad.l - pad.r;
@@ -1070,7 +1088,6 @@ function CarreraChart({ admin, players }) {
   const n = Math.max(players.length, 2);
   const steps = events.length;
 
-  // Visual position at each step: tied players share the average of their positions
   const posAt = (step) => {
     const arr = histories.map(h => ({ id: h.player.id, score: h.snap[step] }));
     arr.sort((a, b) => b.score - a.score);
@@ -1079,7 +1096,6 @@ function CarreraChart({ admin, players }) {
     while (i < arr.length) {
       let j = i;
       while (j < arr.length && arr[j].score === arr[i].score) j++;
-      // positions i+1 .. j (1-based), average = (i+1+j)/2
       const avgPos = (i + j + 1) / 2;
       for (let k = i; k < j; k++) map[arr[k].id] = avgPos;
       i = j;
@@ -1092,7 +1108,6 @@ function CarreraChart({ admin, players }) {
   const xs = i => pad.l + (i / steps) * iW;
   const ys = pos => pad.t + ((pos - 1) / (n - 1)) * iH;
 
-  // Smooth cubic bezier S-curve between rank positions
   const makePath = (id) => {
     let d = `M ${xs(0).toFixed(1)} ${ys(allPos[0][id]).toFixed(1)}`;
     for (let i = 1; i <= steps; i++) {
@@ -1104,7 +1119,6 @@ function CarreraChart({ admin, players }) {
     return d;
   };
 
-  // Round boundaries
   const boundaries = [];
   let curRound = null;
   events.forEach((ev, i) => {
@@ -1115,10 +1129,9 @@ function CarreraChart({ admin, players }) {
   const finalScore = {};
   histories.forEach(h => { finalScore[h.player.id] = h.snap[steps]; });
 
-  // Draw worst positions first so leader renders on top
+  const minPos = Math.min(...Object.values(finalPos));
   const drawOrder = [...histories].sort((a, b) => finalPos[b.player.id] - finalPos[a.player.id]);
 
-  // Spread labels of tied players so they don't overlap
   const LABEL_GAP = 13;
   const sortedForLabels = [...histories].sort((a, b) => {
     const d = finalPos[a.player.id] - finalPos[b.player.id];
@@ -1139,85 +1152,129 @@ function CarreraChart({ admin, players }) {
     li = lj;
   }
 
+  // Chips sorted by final score desc
+  const chipOrder = [...histories].sort((a, b) => finalScore[b.player.id] - finalScore[a.player.id]);
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
-      {/* Background */}
-      <rect x={pad.l} y={pad.t} width={iW} height={iH} fill="rgba(0,0,0,0.28)" rx="4" />
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
+        <rect x={pad.l} y={pad.t} width={iW} height={iH} fill="rgba(0,0,0,0.28)" rx="4" />
 
-      {/* Position lanes */}
-      {Array.from({ length: n }, (_, i) => {
-        const y = ys(i + 1);
-        return (
-          <g key={i}>
-            <line x1={pad.l} y1={y} x2={pad.l + iW} y2={y}
-              stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-            <text x={pad.l - 5} y={y + 4} textAnchor="end" fontSize="9"
-              fill="rgba(255,255,255,0.25)" fontWeight="700">{i + 1}º</text>
-          </g>
-        );
-      })}
+        {Array.from({ length: n }, (_, i) => {
+          const y = ys(i + 1);
+          return (
+            <g key={i}>
+              <line x1={pad.l} y1={y} x2={pad.l + iW} y2={y}
+                stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+              <text x={pad.l - 5} y={y + 4} textAnchor="end" fontSize="9"
+                fill="rgba(255,255,255,0.25)" fontWeight="700">{i + 1}º</text>
+            </g>
+          );
+        })}
 
-      {/* "1º = mejor" label */}
-      <text x={pad.l} y={pad.t - 10} fontSize="8" fill="rgba(255,255,255,0.3)"
-        letterSpacing=".04em">1º = MEJOR</text>
+        <text x={pad.l} y={pad.t - 10} fontSize="8" fill="rgba(255,255,255,0.3)"
+          letterSpacing=".04em">1º = MEJOR</text>
 
-      {/* Round boundaries */}
-      {boundaries.map(({ i, roundId }) => {
-        const R = ROUNDS.find(r => r.id === roundId);
-        const x = xs(i);
-        return (
-          <g key={roundId}>
-            {i > 0 && (
-              <line x1={x} y1={pad.t} x2={x} y2={pad.t + iH}
-                stroke="rgba(255,255,255,0.16)" strokeWidth="1" strokeDasharray="3,3" />
-            )}
-            <text x={x + (i === 0 ? 0 : 3)} y={pad.t - 10} fontSize="8.5"
-              fill="rgba(255,255,255,0.5)" fontWeight="800" letterSpacing=".05em">
-              {R?.short?.toUpperCase()}
-            </text>
-          </g>
-        );
-      })}
+        {boundaries.map(({ i, roundId }) => {
+          const R = ROUNDS.find(r => r.id === roundId);
+          const x = xs(i);
+          return (
+            <g key={roundId}>
+              {i > 0 && (
+                <line x1={x} y1={pad.t} x2={x} y2={pad.t + iH}
+                  stroke="rgba(255,255,255,0.16)" strokeWidth="1" strokeDasharray="3,3" />
+              )}
+              <text x={x + (i === 0 ? 0 : 3)} y={pad.t - 10} fontSize="8.5"
+                fill="rgba(255,255,255,0.5)" fontWeight="800" letterSpacing=".05em">
+                {R?.short?.toUpperCase()}
+              </text>
+            </g>
+          );
+        })}
 
-      {/* Paths */}
-      {drawOrder.map(({ player }) => {
-        const color = getPlayerColor(player.name);
-        const isLeader = finalPos[player.id] === 1;
-        return (
-          <path key={player.id}
-            d={makePath(player.id)}
-            fill="none"
-            stroke={color}
-            strokeWidth={isLeader ? 3 : 1.8}
-            opacity={isLeader ? 1 : 0.55}
-            strokeLinecap="round"
-            style={isLeader ? { filter: `drop-shadow(0 0 6px ${color}bb)` } : undefined}
-          />
-        );
-      })}
+        {drawOrder.map(({ player }) => {
+          const color = getPlayerColor(player.name);
+          const visible = isVisible(player.id);
+          const isLeader = finalPos[player.id] === minPos;
+          return (
+            <path key={player.id}
+              d={makePath(player.id)}
+              fill="none"
+              stroke={visible ? color : "rgba(255,255,255,0.1)"}
+              strokeWidth={visible && isLeader ? 3 : visible ? 1.8 : 1}
+              opacity={visible ? (isLeader ? 1 : 0.65) : 0.18}
+              strokeLinecap="round"
+              style={visible && isLeader ? { filter: `drop-shadow(0 0 6px ${color}bb)` } : undefined}
+            />
+          );
+        })}
 
-      {/* End dots + labels (labels spread when tied) */}
-      {histories.map(({ player }) => {
-        const color = getPlayerColor(player.name);
-        const pos = finalPos[player.id];
-        const score = finalScore[player.id];
-        const cx = xs(steps);
-        const cy = ys(pos);
-        const ly = labelYMap[player.id];
-        return (
-          <g key={player.id}>
-            <circle cx={cx} cy={cy} r="3.5" fill={color}
-              style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
-            <line x1={cx + 4} y1={cy} x2={cx + 9} y2={ly}
-              stroke={color} strokeWidth="0.8" opacity="0.45" />
-            <text x={cx + 11} y={ly + 4} fontSize="10" fill={color} fontWeight="800">
+        {histories.map(({ player }) => {
+          const color = getPlayerColor(player.name);
+          const visible = isVisible(player.id);
+          const pos = finalPos[player.id];
+          const score = finalScore[player.id];
+          const cx = xs(steps);
+          const cy = ys(pos);
+          const ly = labelYMap[player.id];
+          return (
+            <g key={player.id} opacity={visible ? 1 : 0.15}>
+              <circle cx={cx} cy={cy} r="3.5" fill={color}
+                style={visible ? { filter: `drop-shadow(0 0 5px ${color})` } : undefined} />
+              <line x1={cx + 4} y1={cy} x2={cx + 9} y2={ly}
+                stroke={color} strokeWidth="0.8" opacity="0.45" />
+              <text x={cx + 11} y={ly + 4} fontSize="10" fill={color} fontWeight="800">
+                {player.name}
+                <tspan fontSize="8" opacity="0.55" dx="3">{score}p</tspan>
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Player filter chips */}
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 4px 2px" }}>
+        <button
+          onClick={() => setSel(null)}
+          style={{
+            padding:"5px 12px", borderRadius:20, fontSize:11, fontWeight:800,
+            cursor:"pointer", border:"1px solid",
+            background: sel === null ? "rgba(255,255,255,0.12)" : "transparent",
+            borderColor: sel === null ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.12)",
+            color: sel === null ? "#fff" : "rgba(255,255,255,0.4)",
+            letterSpacing:".04em",
+          }}
+        >
+          TODOS
+        </button>
+        {chipOrder.map(({ player }) => {
+          const color = getPlayerColor(player.name);
+          const active = isVisible(player.id);
+          return (
+            <button
+              key={player.id}
+              onClick={() => togglePlayer(player.id)}
+              style={{
+                display:"flex", alignItems:"center", gap:6,
+                padding:"5px 12px", borderRadius:20, fontSize:11, fontWeight:800,
+                cursor:"pointer", border:"1px solid",
+                background: active ? `${color}22` : "transparent",
+                borderColor: active ? `${color}88` : "rgba(255,255,255,0.1)",
+                color: active ? color : "rgba(255,255,255,0.3)",
+                letterSpacing:".03em",
+                transition:"all .15s",
+              }}
+            >
+              <span style={{
+                width:8, height:8, borderRadius:"50%", flexShrink:0,
+                background: active ? color : "rgba(255,255,255,0.2)",
+              }} />
               {player.name}
-              <tspan fontSize="8" opacity="0.55" dx="3">{score}p</tspan>
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
