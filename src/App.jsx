@@ -1089,14 +1089,18 @@ function getForm(player, admin) {
   const results = [];
   for (const R of ROUNDS) {
     const fx = fixturesFor(admin, R.id);
-    fx.forEach((m, i) => {
+    const order = R.id === "r32"
+      ? R32_DATE_ORDER.filter(idx => idx < fx.length)
+      : fx.map((_, i) => i);
+    for (const i of order) {
+      const m = fx[i];
       const id = matchId(R.id, i);
       const res = admin.results?.[id];
-      if (!res || res.adv == null || res.h === "" || res.a === "") return;
+      if (!res || res.adv == null || res.h === "" || res.a === "") continue;
       const pred = player.preds?.[R.id]?.[id];
-      if (!pred || (pred.h === "" && pred.a === "")) { results.push("skip"); return; }
+      if (!pred || (pred.h === "" && pred.a === "")) { results.push("skip"); continue; }
       results.push(predAdv(pred, m[0], m[1]) === res.adv ? "hit" : "miss");
-    });
+    }
   }
   return results.slice(-5);
 }
@@ -1128,12 +1132,16 @@ function buildHistory(players, admin) {
   const events = [];
   for (const R of ROUNDS) {
     const fx = fixturesFor(admin, R.id);
-    fx.forEach((m, i) => {
+    const order = R.id === "r32"
+      ? R32_DATE_ORDER.filter(idx => idx < fx.length)
+      : fx.map((_, i) => i);
+    for (const i of order) {
+      const m = fx[i];
       const id = matchId(R.id, i);
       const res = admin.results?.[id];
       if (res && res.adv != null && res.h !== "" && res.a !== "")
         events.push({ roundId: R.id, id, m, res, mult: R.mult });
-    });
+    }
   }
   const histories = players.map(player => {
     let pts = 0;
