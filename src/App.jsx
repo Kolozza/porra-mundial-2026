@@ -177,7 +177,8 @@ const PLAYER_COLORS = {
   "Niko":    "#ef4444",  // rojo
   "Gentjan": "#FFFFFF",  // blanco
   "Alex":    "#ADFF2F",  // fluorescente
-  "Ray":     "#1F77B4",  // azul
+  "Ray":     "#FFD700",  // amarillo
+  "Ivan":    "#1F77B4",  // azul
 };
 
 const COLOR_PALETTE = [
