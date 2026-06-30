@@ -2162,7 +2162,7 @@ function AdminPage() {
       {loading ? (
         <div className="empty">Cargando…</div>
       ) : adminMode ? (
-        <AdminPanel admin={admin} saveAdmin={saveAdmin} onLogout={handleLogout} />
+        <AdminPanel admin={admin} saveAdmin={saveAdmin} onLogout={handleLogout} flash={flash} />
       ) : (
         <AdminLogin
           adminClaimed={admin.adminClaimed}
@@ -2257,7 +2257,7 @@ function ForceSyncButton({ flash }) {
 }
 
 /* ---------------- Admin panel (tras login) ---------------- */
-function AdminPanel({ admin, saveAdmin, onLogout }) {
+function AdminPanel({ admin, saveAdmin, onLogout, flash }) {
   const round = ROUNDS.find((r) => r.id === admin.openRound) || ROUNDS[0];
   const fx = fixturesFor(admin, round.id);
 
