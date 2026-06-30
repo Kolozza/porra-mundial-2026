@@ -481,6 +481,7 @@ function MainApp() {
     const secret = urlKey || localStorage.getItem("porra_secret");
     const playerId = localStorage.getItem("porra_player_id");
     if (secret && playerId) {
+      supabase.rpc("log_login", { p_player_id: playerId, p_method: urlKey ? "link" : "session" });
       setMySecret(secret);
       setMeId(playerId);
     }
@@ -546,6 +547,7 @@ function MainApp() {
       return { error: msg };
     }
     const { id, secret } = data;
+    supabase.rpc("log_login", { p_player_id: id, p_method: "register" });
     localStorage.setItem("porra_secret", secret);
     localStorage.setItem("porra_player_id", id);
     setMySecret(secret);
@@ -559,6 +561,7 @@ function MainApp() {
     const { data } = await supabase.rpc("recover_player", { p_name: name.trim(), p_pin: pin });
     if (!data) return { error: "Nombre o PIN incorrectos" };
     const { id, secret } = data;
+    supabase.rpc("log_login", { p_player_id: id, p_method: "recovery" });
     localStorage.setItem("porra_secret", secret);
     localStorage.setItem("porra_player_id", id);
     setMySecret(secret);
@@ -2441,10 +2444,77 @@ function AdminPanel({ admin, saveAdmin, onLogout, flash }) {
         </div>
       </Card>
 
+      <LoginLog />
+
       <button className="link" onClick={onLogout}>
         Salir de admin
       </button>
     </div>
+  );
+}
+
+/* ---------------- Login log (admin) ---------------- */
+function LoginLog() {
+  const [log, setLog] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    const secret = localStorage.getItem("porra_admin_secret") || "";
+    const { data } = await supabase.rpc("admin_get_login_log", { p_admin_secret: secret });
+    setLog(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []); // eslint-disable-line
+
+  const METHOD_LABEL = {
+    register: "Registro nuevo",
+    link: "Enlace personal",
+    session: "Sesión",
+    recovery: "Recuperación",
+  };
+
+  const fmt = (ts) =>
+    new Date(ts).toLocaleString("es-ES", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+
+  return (
+    <Card title="Registro de accesos">
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+        <button className="btn sm" onClick={load} disabled={loading}>
+          {loading ? "Cargando…" : "Actualizar"}
+        </button>
+      </div>
+      {loading ? (
+        <p className="muted">Cargando…</p>
+      ) : !log?.length ? (
+        <p className="muted">Sin accesos registrados aún.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid rgba(255,255,255,.15)" }}>
+                {["Jugador", "Fecha y hora", "Tipo"].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "4px 8px", color: "var(--gold)", fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {log.map((entry, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+                  <td style={{ padding: "5px 8px" }}>{entry.player_name}</td>
+                  <td style={{ padding: "5px 8px", fontVariantNumeric: "tabular-nums" }}>{fmt(entry.logged_at)}</td>
+                  <td style={{ padding: "5px 8px", color: "var(--muted)" }}>{METHOD_LABEL[entry.method] || entry.method}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 
