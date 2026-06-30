@@ -1939,8 +1939,8 @@ function Picks({ admin, standings, meId }) {
                     const pred = p.preds?.[round.id]?.[id];
                     const pa = pred ? predAdv(pred, m[0], m[1]) : null;
                     const advOk = resolved && pa === res.adv;
-                    const rh90 = res.h90 != null && res.h90 !== "" ? Number(res.h90) : Number(res.h);
-                    const ra90 = res.a90 != null && res.a90 !== "" ? Number(res.a90) : Number(res.a);
+                    const rh90 = resolved ? (res.h90 != null && res.h90 !== "" ? Number(res.h90) : Number(res.h)) : null;
+                    const ra90 = resolved ? (res.a90 != null && res.a90 !== "" ? Number(res.a90) : Number(res.a)) : null;
                     const scoreOk = resolved && pred &&
                       Number(pred.h) === rh90 &&
                       Number(pred.a) === ra90;
