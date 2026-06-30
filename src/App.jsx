@@ -305,8 +305,9 @@ function scorePlayer(player, admin) {
       const pa = predAdv(pred, m[0], m[1]);
       if (pa && pa === res.adv) pts += 3;
       else allAdvCorrect = false;
-      if (Number(pred.h) === Number(res.h) && Number(pred.a) === Number(res.a))
-        pts += 2;
+      const rh90 = res.h90 != null && res.h90 !== "" ? Number(res.h90) : Number(res.h);
+      const ra90 = res.a90 != null && res.a90 !== "" ? Number(res.a90) : Number(res.a);
+      if (Number(pred.h) === rh90 && Number(pred.a) === ra90) pts += 2;
       pts *= R.mult;
       rp += pts;
     });
@@ -510,6 +511,24 @@ function MainApp() {
     const t = setInterval(load, 20000);
     return () => clearInterval(t);
   }, [load]);
+
+  // Cuando hay partido en vivo, sincroniza con la API de fútbol cada 60s
+  // (complementa el cron de Vercel para mayor frecuencia durante el partido)
+  const hasLive = Object.values(admin.results || {}).some(r => r.live && !r.adv);
+  useEffect(() => {
+    if (!hasLive) return;
+    const lastSync = { t: 0 };
+    const autoSync = async () => {
+      const now = Date.now();
+      if (now - lastSync.t < 55000) return;
+      lastSync.t = now;
+      try { await fetch("/api/sync-results"); } catch (_) {}
+      load();
+    };
+    autoSync();
+    const t = setInterval(autoSync, 60000);
+    return () => clearInterval(t);
+  }, [hasLive, load]);
 
   const flash = (m) => {
     setToast(m);
@@ -930,7 +949,9 @@ function MatchRow({ home, away, pred, draw, locked, onScore, onAdv, result, roun
   if (resolved && hasPred) {
     const pa = predAdv(pred, home, away);
     advOk = pa === result.adv;
-    scoreOk = Number(pred.h) === Number(result.h) && Number(pred.a) === Number(result.a);
+    const rh90 = result.h90 != null && result.h90 !== "" ? Number(result.h90) : Number(result.h);
+    const ra90 = result.a90 != null && result.a90 !== "" ? Number(result.a90) : Number(result.a);
+    scoreOk = Number(pred.h) === rh90 && Number(pred.a) === ra90;
     pts = ((advOk ? 3 : 0) + (scoreOk ? 2 : 0)) * (roundMult || 1);
   }
 
@@ -982,13 +1003,18 @@ function MatchRow({ home, away, pred, draw, locked, onScore, onAdv, result, roun
       )}
       {resolved && (
         <div className="match-result">
+          {result.h90 != null && result.h90 !== "" && (String(result.h90) !== String(result.h) || String(result.a90) !== String(result.a)) && (
+            <span className="mini muted" style={{ width:"100%", fontSize:10 }}>
+              90': {result.h90}–{result.a90} · Final: {result.h}–{result.a}
+            </span>
+          )}
           {hasPred ? (
             <>
               <span className={`mr-badge${advOk ? " ok" : " miss"}`}>
                 {advOk ? "✓" : "✗"} Clasif.
               </span>
               <span className={`mr-badge${scoreOk ? " ok" : " miss"}`}>
-                {scoreOk ? "✓" : "✗"} Marcador
+                {scoreOk ? "✓" : "✗"} Marcador 90'
               </span>
               <span className={`mr-pts${pts > 0 ? " pts-ok" : " pts-zero"}`}>
                 +{pts} pt{pts !== 1 ? "s" : ""}
@@ -1115,7 +1141,9 @@ function buildHistory(players, admin) {
       if (pred && (pred.h !== "" || pred.a !== "")) {
         const pa = predAdv(pred, ev.m[0], ev.m[1]);
         if (pa === ev.res.adv) p += 3;
-        if (Number(pred.h) === Number(ev.res.h) && Number(pred.a) === Number(ev.res.a)) p += 2;
+        const rh = ev.res.h90 != null && ev.res.h90 !== "" ? Number(ev.res.h90) : Number(ev.res.h);
+        const ra = ev.res.a90 != null && ev.res.a90 !== "" ? Number(ev.res.a90) : Number(ev.res.a);
+        if (Number(pred.h) === rh && Number(pred.a) === ra) p += 2;
         p *= ev.mult;
       }
       pts += p;
@@ -1236,6 +1264,10 @@ function NextMatchCountdown({ admin, players }) {
 function LiveCard({ R, m, id, res, players, standings }) {
   const h = Number(res.h), a = Number(res.a);
   const leading = h > a ? m[0] : a > h ? m[1] : null;
+  const isET = res.duration === "EXTRA_TIME" || res.duration === "PENALTY_SHOOTOUT";
+  // Marcador a 90' para el check de marcador exacto (+2 pts)
+  const rh90 = res.h90 != null && res.h90 !== "" ? Number(res.h90) : h;
+  const ra90 = res.a90 != null && res.a90 !== "" ? Number(res.a90) : a;
 
   // Orden de clasificación general (standings ya viene ordenado)
   const standingOrder = standings
@@ -1250,7 +1282,7 @@ function LiveCard({ R, m, id, res, players, standings }) {
       const pa = predAdv(pred, m[0], m[1]);
       const advStatus =
         leading === null ? "tied" : pa === leading ? "winning" : "losing";
-      const scoreOk = Number(pred.h) === h && Number(pred.a) === a;
+      const scoreOk = Number(pred.h) === rh90 && Number(pred.a) === ra90;
       const pts = ((advStatus === "winning" ? 3 : 0) + (scoreOk ? 2 : 0)) * R.mult;
       return { p, pred, pa, advStatus, scoreOk, pts };
     })
@@ -1261,19 +1293,33 @@ function LiveCard({ R, m, id, res, players, standings }) {
       <div className="live-card-hdr">
         <div className="live-hdr-top">
           <span className="live-rnd">{R.name} · ×{R.mult}</span>
-          <span className="live-badge-pill">
-            <span className="live-dot" />
-            EN VIVO
-          </span>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            {isET && (
+              <span style={{ fontSize:10, fontWeight:900, color:"#f59e0b", background:"rgba(245,158,11,.12)", border:"1px solid rgba(245,158,11,.3)", padding:"2px 7px", borderRadius:20, letterSpacing:".05em" }}>
+                PRÓRROGA
+              </span>
+            )}
+            <span className="live-badge-pill">
+              <span className="live-dot" />
+              EN VIVO
+            </span>
+          </div>
         </div>
         <div className="live-scoreline">
           <span className="live-tn">
             <Flag country={m[0]} size={20} />
             {m[0]}
           </span>
-          <span className="live-score-big">
-            {res.h} – {res.a}
-          </span>
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+            <span className="live-score-big">
+              {res.h} – {res.a}
+            </span>
+            {isET && res.h90 != null && res.h90 !== "" && (
+              <span style={{ fontSize:10, color:"rgba(255,255,255,.45)", fontFamily:"var(--mono)", fontWeight:700 }}>
+                90': {res.h90}–{res.a90}
+              </span>
+            )}
+          </div>
           <span className="live-tn right">
             {m[1]}
             <Flag country={m[1]} size={20} />
@@ -1857,7 +1903,11 @@ function Picks({ admin, standings, meId }) {
                     </div>
                     {resolved && (
                       <div className="picks-result">
-                        {res.h}–{res.a} · <Flag country={res.adv} size={11} />
+                        {res.h}–{res.a}
+                        {res.h90 != null && res.h90 !== "" && (String(res.h90) !== String(res.h) || String(res.a90) !== String(res.a)) && (
+                          <span style={{ opacity:.65, fontSize:9, marginLeft:3 }}>(90': {res.h90}–{res.a90})</span>
+                        )}
+                        {" · "}<Flag country={res.adv} size={11} />
                       </div>
                     )}
                     {isLive && (
@@ -1889,9 +1939,11 @@ function Picks({ admin, standings, meId }) {
                     const pred = p.preds?.[round.id]?.[id];
                     const pa = pred ? predAdv(pred, m[0], m[1]) : null;
                     const advOk = resolved && pa === res.adv;
+                    const rh90 = res.h90 != null && res.h90 !== "" ? Number(res.h90) : Number(res.h);
+                    const ra90 = res.a90 != null && res.a90 !== "" ? Number(res.a90) : Number(res.a);
                     const scoreOk = resolved && pred &&
-                      Number(pred.h) === Number(res.h) &&
-                      Number(pred.a) === Number(res.a);
+                      Number(pred.h) === rh90 &&
+                      Number(pred.a) === ra90;
                     const noPred = !pred || (pred.h === "" && pred.a === "");
                     const hidden = hideOthers && !isMe;
                     return (
@@ -2176,6 +2228,34 @@ function AdminLogin({ adminClaimed, onClaim, onLogin }) {
   );
 }
 
+/* ---------------- Force sync button ---------------- */
+function ForceSyncButton({ flash }) {
+  const [syncing, setSyncing] = useState(false);
+
+  const doSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/sync-results");
+      const data = await res.json();
+      if (data.ok) {
+        flash(`Sync OK · ${data.updated} actualizados, ${data.live} en vivo`);
+      } else {
+        flash("Error al sincronizar");
+      }
+    } catch {
+      flash("Error de red al sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <button className="btn sm" onClick={doSync} disabled={syncing}>
+      {syncing ? "Sincronizando…" : "Forzar sync ahora"}
+    </button>
+  );
+}
+
 /* ---------------- Admin panel (tras login) ---------------- */
 function AdminPanel({ admin, saveAdmin, onLogout }) {
   const round = ROUNDS.find((r) => r.id === admin.openRound) || ROUNDS[0];
@@ -2183,7 +2263,13 @@ function AdminPanel({ admin, saveAdmin, onLogout }) {
 
   const setResult = (id, patch) => {
     const cur = admin.results?.[id] || { h: "", a: "", adv: "" };
-    const next = { ...admin.results, [id]: { ...cur, ...patch } };
+    const next = { ...admin.results, [id]: { ...cur, ...patch, manualOverride: true } };
+    saveAdmin({ ...admin, results: next });
+  };
+
+  const unlockResult = (id) => {
+    const cur = admin.results?.[id] || {};
+    const next = { ...admin.results, [id]: { ...cur, manualOverride: false } };
     saveAdmin({ ...admin, results: next });
   };
 
@@ -2267,6 +2353,43 @@ function AdminPanel({ admin, saveAdmin, onLogout }) {
                       {m[1]}
                     </button>
                   </div>
+                  <div className="adv-row" style={{ marginTop:8, paddingTop:8, borderTop:"1px dashed rgba(255,255,255,.08)" }}>
+                    <span className="adv-label">Marcador 90'</span>
+                    <input
+                      className="score"
+                      style={{ width:40, height:36, fontSize:16 }}
+                      inputMode="numeric"
+                      placeholder="—"
+                      value={r.h90 ?? ""}
+                      onChange={(e) => setResult(id, { h90: e.target.value.replace(/\D/g, "") })}
+                    />
+                    <span className="dash" style={{ fontSize:14 }}>–</span>
+                    <input
+                      className="score"
+                      style={{ width:40, height:36, fontSize:16 }}
+                      inputMode="numeric"
+                      placeholder="—"
+                      value={r.a90 ?? ""}
+                      onChange={(e) => setResult(id, { a90: e.target.value.replace(/\D/g, "") })}
+                    />
+                    <span className="adv-label" style={{ opacity:.55, fontWeight:600 }}>solo si hubo prórroga/penaltis</span>
+                  </div>
+                  <div className="adv-row" style={{ marginTop:6, paddingTop:6, borderTop:"1px dashed rgba(255,255,255,.05)", gap:8 }}>
+                    {r.manualOverride ? (
+                      <>
+                        <span style={{ fontSize:11, color:"var(--gold)", fontWeight:700 }}>🔒 auto-sync pausado</span>
+                        <button
+                          className="btn sm"
+                          style={{ fontSize:10, padding:"4px 8px", background:"transparent", border:"1px solid var(--muted)", color:"var(--muted)" }}
+                          onClick={() => unlockResult(id)}
+                        >
+                          Reactivar sync
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize:10, color:"var(--muted)", opacity:.5 }}>auto-sync activo</span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -2303,17 +2426,19 @@ function AdminPanel({ admin, saveAdmin, onLogout }) {
           Para que los resultados se actualicen solos, añade <code>ADMIN_SECRET</code> como
           variable de entorno en Vercel con el valor de abajo.
         </p>
-        <button
-          className="btn sm"
-          style={{marginTop:10}}
-          onClick={() => {
-            const s = localStorage.getItem("porra_admin_secret") || "";
-            navigator.clipboard.writeText(s);
-            alert("Secreto copiado: " + s);
-          }}
-        >
-          Copiar ADMIN_SECRET
-        </button>
+        <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+          <button
+            className="btn sm"
+            onClick={() => {
+              const s = localStorage.getItem("porra_admin_secret") || "";
+              navigator.clipboard.writeText(s);
+              alert("Secreto copiado: " + s);
+            }}
+          >
+            Copiar ADMIN_SECRET
+          </button>
+          <ForceSyncButton flash={flash} />
+        </div>
       </Card>
 
       <button className="link" onClick={onLogout}>

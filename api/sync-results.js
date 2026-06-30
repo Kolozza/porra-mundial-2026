@@ -159,27 +159,74 @@ export default async function handler(req, res) {
       matchId = `${roundId}-${idx}`;
     }
 
-    // fullTime = marcador a los 90'. extraTime = marcador tras prórroga (acumulado).
-    // Guardamos siempre el marcador a 90' en h/a para el bonus de resultado exacto.
-    const duration = match.duration; // "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT"
-    const ft = match.score.fullTime;
-    const h90 = ft?.home ?? "";
-    const a90 = ft?.away ?? "";
+    // Respetar correcciones manuales del admin: si está bloqueado, no tocarlo
+    if (newResults[matchId]?.manualOverride === true) continue;
+
+    // En football-data.org v4:
+    //   score.regularTime = marcador a los 90' exactos (presente en ET y PSO)
+    //   score.extraTime   = marcador final tras prórroga (ET y PSO)
+    //                       ⚠️ En PSO acumula los goles de penaltis → NO usar para display en PSO
+    //   score.fullTime    = marcador final del partido
+    //                       ⚠️ En PSO también puede acumular penaltis → NO usar para display en PSO
+    //
+    // Estrategia por tipo de partido:
+    //   REGULAR          → display = fullTime       | 90' = fullTime
+    //   EXTRA_TIME       → display = extraTime      | 90' = regularTime
+    //   PENALTY_SHOOTOUT → display = regularTime    | 90' = regularTime
+    //     (PSO: extraTime y fullTime pueden incluir goles de penaltis acumulados)
+    const scoreData = match.score;
+    const duration = scoreData.duration || "REGULAR";
+    const isPSO = duration === "PENALTY_SHOOTOUT";
+    const isExtraTime = duration === "EXTRA_TIME";
+    const ft = scoreData.fullTime;
+    const et = scoreData.extraTime;
+    const rt = scoreData.regularTime;
+
+    // Marcador 90' (siempre regularTime si existe, si no fullTime — son iguales para REGULAR)
+    const h90 = rt?.home ?? ft?.home ?? "";
+    const a90 = rt?.away ?? ft?.away ?? "";
+
+    // Marcador para display (sin contar goles de penaltis)
+    let hFinal, aFinal;
+    if (isPSO) {
+      // PSO: usar regularTime — es el marcador antes de que empezaran los penaltis
+      hFinal = rt?.home ?? ft?.home ?? "";
+      aFinal = rt?.away ?? ft?.away ?? "";
+    } else if (isExtraTime) {
+      // ET ganado en prórroga: usar extraTime (marcador final de la prórroga)
+      hFinal = et?.home ?? ft?.home ?? "";
+      aFinal = et?.away ?? ft?.away ?? "";
+    } else {
+      hFinal = ft?.home ?? "";
+      aFinal = ft?.away ?? "";
+    }
 
     if (isFinished) {
       let adv = null;
-      if (match.score.winner === "HOME_TEAM") adv = homeSpa;
-      else if (match.score.winner === "AWAY_TEAM") adv = awaySpa;
+      if (scoreData.winner === "HOME_TEAM") adv = homeSpa;
+      else if (scoreData.winner === "AWAY_TEAM") adv = awaySpa;
 
-      // h/a = marcador 90' (para +2 exacto). adv = ganador final (para +3 quién pasa).
-      // Si hubo prórroga o penaltis, ambos datos son independientes y correctos.
-      newResults[matchId] = { h: String(h90), a: String(a90), adv, duration };
+      // h/a = marcador display (sin penaltis). adv = quien pasa.
+      // h90/a90 solo se guarda cuando la prórroga añadió goles (ET ganado en prórroga).
+      // En PSO el marcador de 90' = display, no hace falta guardarlo por separado.
+      const result = { h: String(hFinal), a: String(aFinal), adv, duration };
+      if (isExtraTime && (String(h90) !== String(hFinal) || String(a90) !== String(aFinal))) {
+        result.h90 = String(h90);
+        result.a90 = String(a90);
+      }
+      newResults[matchId] = result;
       updated++;
     } else {
-      // En juego: marcador provisional sin adv, sin machacar un resultado final
+      // En juego: hFinal ya es seguro (PSO→regularTime, ET→extraTime, normal→fullTime)
       const existing = newResults[matchId];
-      if (!existing?.adv && h90 !== "" && a90 !== "") {
-        newResults[matchId] = { h: String(h90), a: String(a90), adv: null, live: true, duration };
+      if (!existing?.adv && hFinal !== "" && aFinal !== "") {
+        const liveResult = { h: String(hFinal), a: String(aFinal), adv: null, live: true, duration };
+        // Durante prórroga en vivo: guardar marcador 90' si difiere del display
+        if (isExtraTime && (String(h90) !== String(hFinal) || String(a90) !== String(aFinal))) {
+          liveResult.h90 = String(h90);
+          liveResult.a90 = String(a90);
+        }
+        newResults[matchId] = liveResult;
         live++;
       }
     }
