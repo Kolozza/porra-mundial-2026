@@ -1221,7 +1221,7 @@ function NextMatchCountdown({ admin, players }) {
         .map(p => {
           const pred = p.preds?.["r32"]?.[next.id];
           const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
-          const adv = hasPred ? (pred.adv || predAdv(pred, next.teams[0], next.teams[1])) : null;
+          const adv = hasPred ? predAdv(pred, next.teams[0], next.teams[1]) : null;
           return {
             name: p.name,
             h: hasPred ? pred.h : null,
