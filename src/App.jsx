@@ -1210,7 +1210,7 @@ function NextMatchCountdown({ admin, players }) {
   const mins  = Math.floor((diff % 3600000) / 60000);
   const secs  = Math.floor((diff % 60000) / 1000);
 
-  const showPreds = diff < 3600000; // menos de 1 hora
+  const showPreds = diff < 10800000; // menos de 3 horas
   const preds = showPreds && players
     ? [...players]
         .sort((a, b) => {

@@ -18,7 +18,10 @@ const TEAM_MAP = {
   "Mexico": "México",
   "England": "Inglaterra",
   "DR Congo": "RD Congo",
+  "Congo DR": "RD Congo",
   "Democratic Republic of Congo": "RD Congo",
+  "Democratic Republic of the Congo": "RD Congo",
+  "Dem. Rep. Congo": "RD Congo",
   "Belgium": "Bélgica",
   "Senegal": "Senegal",
   "United States": "Estados Unidos",
@@ -129,26 +132,19 @@ export default async function handler(req, res) {
   let live = 0;
 
   // 3. Procesar partidos terminados y en juego
-  const skipped = [];
   for (const match of matches) {
     const isFinished = match.status === "FINISHED";
     const isLive     = LIVE_STATUSES.has(match.status);
     if (!isFinished && !isLive) continue;
 
     const roundId = STAGE_MAP[match.stage];
-    if (!roundId) {
-      skipped.push({ reason: "stage", stage: match.stage, home: match.homeTeam?.name, away: match.awayTeam?.name });
-      continue;
-    }
+    if (!roundId) continue;
 
     const homeEng = match.homeTeam?.name;
     const awayEng = match.awayTeam?.name;
     const homeSpa = TEAM_MAP[homeEng];
     const awaySpa = TEAM_MAP[awayEng];
-    if (!homeSpa || !awaySpa) {
-      skipped.push({ reason: "team", home: homeEng, away: awayEng, homeMapped: homeSpa, awayMapped: awaySpa });
-      continue;
-    }
+    if (!homeSpa || !awaySpa) continue;
 
     // Encontrar el ID del partido
     let matchId;
@@ -250,6 +246,5 @@ export default async function handler(req, res) {
     updated,
     live,
     total: matches.filter((m) => m.status === "FINISHED").length,
-    skipped,
   });
 }
