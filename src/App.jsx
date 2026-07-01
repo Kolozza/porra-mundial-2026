@@ -514,11 +514,23 @@ function MainApp() {
     return () => clearInterval(t);
   }, [load]);
 
-  // Cuando hay partido en vivo, sincroniza con la API de fútbol cada 60s
-  // (complementa el cron de Vercel para mayor frecuencia durante el partido)
+  // Sincroniza con la API de fútbol cada 60s cuando:
+  // - hay partido marcado como live en la BD, O
+  // - el kickoff de algún partido ya pasó pero no tiene resultado aún
   const hasLive = Object.values(admin.results || {}).some(r => r.live && !r.adv);
+  const hasStartedUnresolved = !loading && R32_DATE_ORDER.some(origIdx => {
+    const id = matchId("r32", origIdx);
+    const res = admin.results?.[id];
+    const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+    if (resolved || (res && res.live)) return false;
+    const dateStr = R32_DATES[origIdx];
+    const timeStr = R32_TIMES[origIdx];
+    if (!dateStr || !timeStr) return false;
+    return parseMatchDateTime(dateStr, timeStr) <= new Date();
+  });
+  const shouldSync = hasLive || hasStartedUnresolved;
   useEffect(() => {
-    if (!hasLive) return;
+    if (!shouldSync) return;
     const lastSync = { t: 0 };
     const autoSync = async () => {
       const now = Date.now();
@@ -530,7 +542,7 @@ function MainApp() {
     autoSync();
     const t = setInterval(autoSync, 60000);
     return () => clearInterval(t);
-  }, [hasLive, load]);
+  }, [shouldSync, load]);
 
   const flash = (m) => {
     setToast(m);
