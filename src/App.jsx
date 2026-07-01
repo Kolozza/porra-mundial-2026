@@ -1292,8 +1292,9 @@ function LiveCard({ R, m, id, res, players, standings }) {
       if (!pred || pred.h === "" || pred.h == null || pred.a === "" || pred.a == null)
         return { p, pred: null, pa: null, advStatus: "none", scoreOk: false, pts: 0 };
       const pa = predAdv(pred, m[0], m[1]);
-      const advStatus =
-        leading === null ? "tied" : pa === leading ? "winning" : "losing";
+      // pa===null → sin ganador claro (empate sin desempate): neutro
+      // si el marcador está igualado y predijiste ganador, tu pick no está ganando → "losing"
+      const advStatus = pa === null ? "tied" : pa === leading ? "winning" : "losing";
       const scoreOk = Number(pred.h) === rh90 && Number(pred.a) === ra90;
       const pts = ((advStatus === "winning" ? 3 : 0) + (scoreOk ? 2 : 0)) * R.mult;
       return { p, pred, pa, advStatus, scoreOk, pts };
