@@ -653,6 +653,7 @@ function MainApp() {
       <nav className="tabs">
         {[
           ["jugar", "Jugar"],
+          ["resumen", "Resumen"],
           ["clasi", "Clasificación"],
           ["picks", "Picks"],
           ["reglas", "Reglas"],
@@ -674,6 +675,8 @@ function MainApp() {
           <LiveMatchPanel admin={admin} players={players} standings={standings} />
           {tab === "jugar" ? (
             <Jugar admin={admin} me={me} onSave={handleSave} />
+          ) : tab === "resumen" ? (
+            <Resumen players={players} admin={admin} standings={standings} />
           ) : tab === "clasi" ? (
             <Clasificacion standings={standings} admin={admin} meId={meId} />
           ) : tab === "picks" ? (
@@ -1100,22 +1103,18 @@ function PichichiPicker({ value, disabled, onChange }) {
 /* ---------------- Forma y máximo potencial ---------------- */
 function getForm(player, admin) {
   const results = [];
-  for (const R of ROUNDS) {
-    const fx = fixturesFor(admin, R.id);
-    const order = R.id === "r32"
-      ? R32_DATE_ORDER.filter(idx => idx < fx.length)
-      : fx.map((_, i) => i);
-    for (const i of order) {
-      const m = fx[i];
-      const id = matchId(R.id, i);
-      const res = admin.results?.[id];
-      if (!res || res.adv == null || res.h === "" || res.a === "") continue;
-      const pred = player.preds?.[R.id]?.[id];
-      if (!pred || (pred.h === "" && pred.a === "")) { results.push("skip"); continue; }
-      results.push(predAdv(pred, m[0], m[1]) === res.adv ? "hit" : "miss");
-    }
+  const fx = fixturesFor(admin, "r32");
+  const order = R32_DATE_ORDER.filter(idx => idx < fx.length);
+  for (const i of order) {
+    const m = fx[i];
+    const id = matchId("r32", i);
+    const res = admin.results?.[id];
+    if (!res || res.adv == null || res.h === "" || res.a === "") continue;
+    const pred = player.preds?.r32?.[id];
+    if (!pred || (pred.h === "" && pred.a === "")) { results.push("skip"); continue; }
+    results.push(predAdv(pred, m[0], m[1]) === res.adv ? "hit" : "miss");
   }
-  return results.slice(-5);
+  return results;
 }
 
 function maxRemaining(player, admin) {
@@ -1176,6 +1175,102 @@ function buildHistory(players, admin) {
     return { player, snap };
   });
   return { histories, events };
+}
+
+function positionsAt(histories, step) {
+  const arr = histories.map(h => ({ id: h.player.id, score: h.snap[step] }));
+  arr.sort((a, b) => b.score - a.score);
+  const map = {};
+  let i = 0;
+  while (i < arr.length) {
+    let j = i;
+    while (j < arr.length && arr[j].score === arr[i].score) j++;
+    const avgPos = (i + j + 1) / 2;
+    for (let k = i; k < j; k++) map[arr[k].id] = avgPos;
+    i = j;
+  }
+  return map;
+}
+
+/* ---------------- Estadísticas de la fase (Resumen) ---------------- */
+function topBy(list, keyFn) {
+  if (!list.length) return { value: 0, items: [] };
+  const value = Math.max(...list.map(keyFn));
+  return { value, items: list.filter(x => keyFn(x) === value) };
+}
+
+function computeR32Stats(players, admin) {
+  const fx = fixturesFor(admin, "r32");
+  const order = R32_DATE_ORDER.filter(idx => idx < fx.length);
+  const resolvedOrder = order.filter(i => {
+    const res = admin.results?.[matchId("r32", i)];
+    return res && res.adv != null && res.h !== "" && res.a !== "";
+  });
+
+  const perPlayer = players.map((p) => {
+    let advHits = 0, advPlayed = 0, exactHits = 0;
+    let bestHitStreak = 0, bestMissStreak = 0, runHit = 0, runMiss = 0;
+    resolvedOrder.forEach((i) => {
+      const m = fx[i];
+      const id = matchId("r32", i);
+      const res = admin.results[id];
+      const pred = p.preds?.r32?.[id];
+      const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
+      if (!hasPred) { runHit = 0; runMiss = 0; return; }
+      advPlayed++;
+      const hit = predAdv(pred, m[0], m[1]) === res.adv;
+      if (hit) {
+        advHits++; runHit++; runMiss = 0;
+        if (runHit > bestHitStreak) bestHitStreak = runHit;
+      } else {
+        runMiss++; runHit = 0;
+        if (runMiss > bestMissStreak) bestMissStreak = runMiss;
+      }
+      const rh90 = res.h90 != null && res.h90 !== "" ? Number(res.h90) : Number(res.h);
+      const ra90 = res.a90 != null && res.a90 !== "" ? Number(res.a90) : Number(res.a);
+      if (Number(pred.h) === rh90 && Number(pred.a) === ra90) exactHits++;
+    });
+
+    // racha activa: recorre desde el final mientras siga la misma tendencia
+    let curStreak = 0;
+    for (let k = resolvedOrder.length - 1; k >= 0; k--) {
+      const i = resolvedOrder[k];
+      const id = matchId("r32", i);
+      const res = admin.results[id];
+      const m = fx[i];
+      const pred = p.preds?.r32?.[id];
+      const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
+      if (!hasPred) break;
+      const hit = predAdv(pred, m[0], m[1]) === res.adv;
+      if (curStreak === 0) curStreak = hit ? 1 : -1;
+      else if (curStreak > 0 && hit) curStreak++;
+      else if (curStreak < 0 && !hit) curStreak--;
+      else break;
+    }
+
+    return {
+      player: p, advHits, advPlayed, exactHits,
+      pct: advPlayed ? advHits / advPlayed : 0,
+      bestHitStreak, bestMissStreak, curStreak,
+    };
+  });
+
+  const perMatch = resolvedOrder.map((i) => {
+    const id = matchId("r32", i);
+    const res = admin.results[id];
+    const m = fx[i];
+    let hits = 0, played = 0;
+    players.forEach((p) => {
+      const pred = p.preds?.r32?.[id];
+      const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
+      if (!hasPred) return;
+      played++;
+      if (predAdv(pred, m[0], m[1]) === res.adv) hits++;
+    });
+    return { teams: m, hits, played, pct: played ? hits / played : 0 };
+  });
+
+  return { perPlayer, perMatch, playedCount: resolvedOrder.length, totalCount: order.length };
 }
 
 /* ---------------- Countdown al próximo partido ---------------- */
@@ -1455,22 +1550,7 @@ function CarreraChart({ admin, players }) {
   const n = Math.max(players.length, 2);
   const steps = events.length;
 
-  const posAt = (step) => {
-    const arr = histories.map(h => ({ id: h.player.id, score: h.snap[step] }));
-    arr.sort((a, b) => b.score - a.score);
-    const map = {};
-    let i = 0;
-    while (i < arr.length) {
-      let j = i;
-      while (j < arr.length && arr[j].score === arr[i].score) j++;
-      const avgPos = (i + j + 1) / 2;
-      for (let k = i; k < j; k++) map[arr[k].id] = avgPos;
-      i = j;
-    }
-    return map;
-  };
-
-  const allPos = Array.from({ length: steps + 1 }, (_, s) => posAt(s));
+  const allPos = Array.from({ length: steps + 1 }, (_, s) => positionsAt(histories, s));
 
   const xs = i => pad.l + (i / steps) * iW;
   const ys = pos => pad.t + ((pos - 1) / (n - 1)) * iH;
@@ -1793,6 +1873,122 @@ function Clasificacion({ standings, admin, meId }) {
         <CarreraChart admin={admin} players={players} />
       </section>
 
+    </div>
+  );
+}
+
+/* ---------------- Resumen de la fase ---------------- */
+function StatCard({ emoji, title, value, names }) {
+  return (
+    <section className="card stat-card">
+      <div className="stat-emoji">{emoji}</div>
+      <h4>{title}</h4>
+      <div className="stat-value">{value}</div>
+      <div className="stat-names">{names}</div>
+    </section>
+  );
+}
+
+function Resumen({ players, admin, standings }) {
+  const { perPlayer, perMatch, playedCount, totalCount } = computeR32Stats(players, admin);
+
+  if (playedCount === 0) {
+    return (
+      <div className="empty">
+        El resumen se llenará de datos jugosos en cuanto se resuelva el primer partido de dieciseisavos.
+      </div>
+    );
+  }
+
+  const { histories } = buildHistory(players, admin);
+  const steps = (histories[0]?.snap.length || 1) - 1;
+  const baseStep = Math.min(1, steps);
+  const posBase = positionsAt(histories, baseStep);
+  const posNow = positionsAt(histories, steps);
+  const movers = histories.map((h) => ({
+    player: h.player,
+    climb: posBase[h.player.id] - posNow[h.player.id],
+  }));
+
+  const names = (items) => items.map((x) => x.player.name).join(" y ");
+  const fmtPos = (n) => {
+    const r = Math.round(n * 10) / 10;
+    return Number.isInteger(r) ? r : r.toFixed(1);
+  };
+
+  const withPreds = perPlayer.filter((p) => p.advPlayed > 0);
+  const advLeader = topBy(withPreds, (p) => p.advHits);
+  const exactLeader = topBy(withPreds, (p) => p.exactHits);
+  const pctPool = withPreds.filter((p) => p.advPlayed >= Math.min(5, playedCount));
+  const pctLeader = topBy(pctPool, (p) => p.pct);
+  const hotStreak = topBy(perPlayer.filter((p) => p.curStreak > 0), (p) => p.curStreak);
+  const coldStreak = topBy(perPlayer.filter((p) => p.curStreak < 0), (p) => -p.curStreak);
+  const climber = topBy(movers.filter((m) => m.climb > 0), (m) => m.climb);
+  const faller = topBy(movers.filter((m) => m.climb < 0), (m) => -m.climb);
+
+  const playedMatches = perMatch.filter((m) => m.played > 0);
+  const easiest = topBy(playedMatches, (m) => m.pct);
+  const hardest = topBy(playedMatches, (m) => -m.pct);
+
+  const totalPts = standings.reduce((acc, s) => acc + s.s.total, 0);
+  const totalPending = standings.reduce((acc, s) => acc + s.s.pending, 0);
+
+  return (
+    <div className="pane">
+      <section className="card resumen-hero">
+        <h3>Resumen · Dieciseisavos</h3>
+        <p className="mini muted">
+          {playedCount} de {totalCount} partidos resueltos · {totalPts} puntos repartidos entre todos · {totalPending} pronósticos aún en juego
+        </p>
+      </section>
+
+      <div className="stat-grid">
+        {advLeader.items.length > 0 && (
+          <StatCard emoji="🎯" title="El más fino con el pase"
+            value={`${advLeader.value} de ${playedCount} aciertos`}
+            names={names(advLeader.items)} />
+        )}
+        {exactLeader.items.length > 0 && exactLeader.value > 0 && (
+          <StatCard emoji="🔮" title="Rey del marcador exacto"
+            value={`${exactLeader.value} marcador${exactLeader.value === 1 ? "" : "es"} clavado${exactLeader.value === 1 ? "" : "s"}`}
+            names={names(exactLeader.items)} />
+        )}
+        {pctLeader.items.length > 0 && pctLeader.value > 0 && (
+          <StatCard emoji="🧠" title="El Oráculo (mejor % de acierto)"
+            value={`${Math.round(pctLeader.value * 100)}%`}
+            names={names(pctLeader.items)} />
+        )}
+        {hotStreak.items.length > 0 && (
+          <StatCard emoji="🔥" title="En racha ahora mismo"
+            value={`${hotStreak.value} acierto${hotStreak.value === 1 ? "" : "s"} seguidos`}
+            names={names(hotStreak.items)} />
+        )}
+        {coldStreak.items.length > 0 && (
+          <StatCard emoji="🧊" title="En capilla"
+            value={`${coldStreak.value} fallo${coldStreak.value === 1 ? "" : "s"} seguidos`}
+            names={names(coldStreak.items)} />
+        )}
+        {climber.items.length > 0 && (
+          <StatCard emoji="🚀" title="El que más ha subido"
+            value={`+${fmtPos(climber.value)} puestos`}
+            names={names(climber.items)} />
+        )}
+        {faller.items.length > 0 && (
+          <StatCard emoji="📉" title="El que más ha caído"
+            value={`-${fmtPos(faller.value)} puestos`}
+            names={names(faller.items)} />
+        )}
+        {easiest.items.length > 0 && easiest.value > 0 && (
+          <StatCard emoji="🧶" title="Partido coser y cantar"
+            value={`${Math.round(easiest.value * 100)}% acertó el pase`}
+            names={easiest.items.map((m) => `${m.teams[0]} – ${m.teams[1]}`).join(" · ")} />
+        )}
+        {hardest.items.length > 0 && hardest.value < 1 && (
+          <StatCard emoji="🎲" title="El partido más tramposo"
+            value={`solo ${Math.round(hardest.value * 100)}% acertó el pase`}
+            names={hardest.items.map((m) => `${m.teams[0]} – ${m.teams[1]}`).join(" · ")} />
+        )}
+      </div>
     </div>
   );
 }
@@ -2982,6 +3178,27 @@ const CSS = `
 }
 .card ul{margin:0;padding-left:18px;line-height:1.8;font-size:14px}
 .card p{margin:0;line-height:1.6;font-size:14px}
+
+/* ── Resumen ─────────────────────────────────────────────── */
+.resumen-hero{margin-bottom:12px}
+.resumen-hero h3{margin-bottom:6px}
+.resumen-hero p{margin:0}
+.stat-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
+}
+.stat-card{
+  display:flex;flex-direction:column;gap:2px;padding:14px 12px;text-align:center;
+}
+.stat-emoji{font-size:22px;line-height:1}
+.stat-card h4{
+  margin:6px 0 0;font-size:11px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--muted);
+}
+.stat-value{font-size:17px;font-weight:900;color:var(--green);margin-top:4px}
+.stat-names{font-size:13px;font-weight:700;margin-top:2px}
+@media (max-width:420px){
+  .stat-grid{grid-template-columns:1fr}
+}
 
 /* ── Admin ───────────────────────────────────────────────── */
 .chips,.fix-actions{display:flex;gap:6px;flex-wrap:wrap}
