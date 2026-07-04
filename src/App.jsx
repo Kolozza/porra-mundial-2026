@@ -172,6 +172,19 @@ const R32_TIMES = {
   13:"20:00",14:"00:00",15:"03:30",
 };
 
+// Octavos: fechas/horas oficiales (horario peninsular España), en el mismo
+// orden cronológico en el que se cargaron los cruces (admin.fixtures.r16).
+const R16_DATES = ["4 Jul", "4 Jul", "5 Jul", "6 Jul", "6 Jul", "7 Jul", "7 Jul", "7 Jul"];
+const R16_TIMES = ["19:00", "23:00", "22:00", "02:00", "21:00", "02:00", "18:00", "22:00"];
+
+// Calendario por ronda: qué array de fechas/horas usar y en qué orden
+// cronológico recorrer los índices de fixturesFor(admin, roundId).
+// order=null → los cruces ya están cargados en orden cronológico (índice = orden).
+const ROUND_SCHEDULE = {
+  r32: { dates: R32_DATES, times: R32_TIMES, order: R32_DATE_ORDER },
+  r16: { dates: R16_DATES, times: R16_TIMES, order: null },
+};
+
 const PLAYER_COLORS = {
   "Matias":  "#74ACDF",  // albiceleste
   "Niko":    "#ef4444",  // rojo
@@ -518,15 +531,21 @@ function MainApp() {
   // - hay partido marcado como live en la BD, O
   // - el kickoff de algún partido ya pasó pero no tiene resultado aún
   const hasLive = Object.values(admin.results || {}).some(r => r.live && !r.adv);
-  const hasStartedUnresolved = !loading && R32_DATE_ORDER.some(origIdx => {
-    const id = matchId("r32", origIdx);
-    const res = admin.results?.[id];
-    const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
-    if (resolved || (res && res.live)) return false;
-    const dateStr = R32_DATES[origIdx];
-    const timeStr = R32_TIMES[origIdx];
-    if (!dateStr || !timeStr) return false;
-    return parseMatchDateTime(dateStr, timeStr) <= new Date();
+  const hasStartedUnresolved = !loading && ROUNDS.some((R) => {
+    const sched = ROUND_SCHEDULE[R.id];
+    if (!sched) return false;
+    const fx = fixturesFor(admin, R.id);
+    const order = sched.order ? sched.order.filter(idx => idx < fx.length) : fx.map((_, i) => i);
+    return order.some((i) => {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+      if (resolved || (res && res.live)) return false;
+      const dateStr = sched.dates[i];
+      const timeStr = sched.times[i];
+      if (!dateStr || !timeStr) return false;
+      return parseMatchDateTime(dateStr, timeStr) <= new Date();
+    });
   });
   const shouldSync = hasLive || hasStartedUnresolved;
   useEffect(() => {
@@ -653,9 +672,9 @@ function MainApp() {
       <nav className="tabs">
         {[
           ["jugar", "Jugar"],
-          ["resumen", "Resumen"],
-          ["clasi", "Clasificación"],
           ["picks", "Picks"],
+          ["clasi", "Clasificación"],
+          ["resumen", "Resumen"],
           ["reglas", "Reglas"],
         ].map(([id, label]) => (
           <button
@@ -850,13 +869,15 @@ function Jugar({ admin, me, onSave }) {
   const save = () =>
     onSave(draft.champion, draft.pichichi, round.id, draft.preds[round.id] || {}, champLocked);
 
-  const displayMatches = round.id === "r32"
-    ? R32_DATE_ORDER.map(origIdx => ({
-        m: fx[origIdx],
-        id: matchId(round.id, origIdx),
-        dateStr: R32_DATES[origIdx],
-        timeStr: R32_TIMES[origIdx],
-      }))
+  const roundSched = ROUND_SCHEDULE[round.id];
+  const displayMatches = roundSched
+    ? (roundSched.order ? roundSched.order.filter(idx => idx < fx.length) : fx.map((_, i) => i))
+        .map(idx => ({
+          m: fx[idx],
+          id: matchId(round.id, idx),
+          dateStr: roundSched.dates[idx],
+          timeStr: roundSched.times[idx],
+        }))
     : fx.map((m, i) => ({ m, id: matchId(round.id, i), dateStr: null, timeStr: null }));
 
   return (
@@ -1101,16 +1122,19 @@ function PichichiPicker({ value, disabled, onChange }) {
 }
 
 /* ---------------- Forma y máximo potencial ---------------- */
+// Aciertos/fallos de la ronda en curso (se resetea al abrir la siguiente ronda).
 function getForm(player, admin) {
   const results = [];
-  const fx = fixturesFor(admin, "r32");
-  const order = R32_DATE_ORDER.filter(idx => idx < fx.length);
+  const roundId = admin.openRound;
+  const fx = fixturesFor(admin, roundId);
+  const sched = ROUND_SCHEDULE[roundId];
+  const order = sched?.order ? sched.order.filter(idx => idx < fx.length) : fx.map((_, i) => i);
   for (const i of order) {
     const m = fx[i];
-    const id = matchId("r32", i);
+    const id = matchId(roundId, i);
     const res = admin.results?.[id];
     if (!res || res.adv == null || res.h === "" || res.a === "") continue;
-    const pred = player.preds?.r32?.[id];
+    const pred = player.preds?.[roundId]?.[id];
     if (!pred || (pred.h === "" && pred.a === "")) { results.push("skip"); continue; }
     results.push(predAdv(pred, m[0], m[1]) === res.adv ? "hit" : "miss");
   }
@@ -1284,18 +1308,24 @@ function parseMatchDateTime(dateStr, timeStr) {
 function findNextMatch(admin) {
   const now = new Date();
   let next = null;
-  for (const origIdx of R32_DATE_ORDER) {
-    const id = matchId("r32", origIdx);
-    const res = admin.results?.[id];
-    const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
-    const live = res && res.live && !resolved;
-    if (resolved || live) continue;
-    const dateStr = R32_DATES[origIdx];
-    const timeStr = R32_TIMES[origIdx];
-    if (!dateStr || !timeStr) continue;
-    const kickoff = parseMatchDateTime(dateStr, timeStr);
-    if (kickoff > now && (!next || kickoff < next.kickoff))
-      next = { kickoff, teams: R32[origIdx], dateStr, timeStr, id: matchId("r32", origIdx) };
+  for (const R of ROUNDS) {
+    const sched = ROUND_SCHEDULE[R.id];
+    if (!sched) continue;
+    const fx = fixturesFor(admin, R.id);
+    const order = sched.order ? sched.order.filter(idx => idx < fx.length) : fx.map((_, i) => i);
+    for (const i of order) {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+      const live = res && res.live && !resolved;
+      if (resolved || live) continue;
+      const dateStr = sched.dates[i];
+      const timeStr = sched.times[i];
+      if (!dateStr || !timeStr) continue;
+      const kickoff = parseMatchDateTime(dateStr, timeStr);
+      if (kickoff > now && (!next || kickoff < next.kickoff))
+        next = { kickoff, teams: fx[i], dateStr, timeStr, id, roundId: R.id };
+    }
   }
   return next;
 }
@@ -1326,7 +1356,7 @@ function NextMatchCountdown({ admin, players }) {
           return sb - sa || a.name.localeCompare(b.name, "es");
         })
         .map(p => {
-          const pred = p.preds?.["r32"]?.[next.id];
+          const pred = p.preds?.[next.roundId]?.[next.id];
           const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
           const adv = hasPred ? predAdv(pred, next.teams[0], next.teams[1]) : null;
           return {
@@ -1500,15 +1530,21 @@ function LiveMatchPanel({ admin, players, standings }) {
 
   // Aunque no esté marcado como live, si el kickoff ya pasó y no está resuelto,
   // ocultamos el countdown (partido en marcha sin actualizar aún)
-  const anyStarted = R32_DATE_ORDER.some(origIdx => {
-    const id = matchId("r32", origIdx);
-    const res = admin.results?.[id];
-    const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
-    if (resolved) return false;
-    const dateStr = R32_DATES[origIdx];
-    const timeStr = R32_TIMES[origIdx];
-    if (!dateStr || !timeStr) return false;
-    return parseMatchDateTime(dateStr, timeStr) <= now;
+  const anyStarted = ROUNDS.some((R) => {
+    const sched = ROUND_SCHEDULE[R.id];
+    if (!sched) return false;
+    const fx = fixturesFor(admin, R.id);
+    const order = sched.order ? sched.order.filter(idx => idx < fx.length) : fx.map((_, i) => i);
+    return order.some((i) => {
+      const id = matchId(R.id, i);
+      const res = admin.results?.[id];
+      const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+      if (resolved) return false;
+      const dateStr = sched.dates[i];
+      const timeStr = sched.times[i];
+      if (!dateStr || !timeStr) return false;
+      return parseMatchDateTime(dateStr, timeStr) <= now;
+    });
   });
 
   if (anyStarted) return null;
@@ -1902,13 +1938,21 @@ function Resumen({ players, admin, standings }) {
 
   const { histories } = buildHistory(players, admin);
   const steps = (histories[0]?.snap.length || 1) - 1;
-  const baseStep = Math.min(1, steps);
-  const posBase = positionsAt(histories, baseStep);
-  const posNow = positionsAt(histories, steps);
-  const movers = histories.map((h) => ({
-    player: h.player,
-    climb: posBase[h.player.id] - posNow[h.player.id],
-  }));
+  // Recorrido completo de posiciones tras cada partido (excluyendo el paso 0,
+  // donde todos empatan a 0 puntos y "mejor/peor posición" no dice nada real).
+  const allPos = Array.from({ length: steps + 1 }, (_, s) => positionsAt(histories, s));
+  const movers = histories.map((h) => {
+    const series = [];
+    for (let s = 1; s <= steps; s++) series.push(allPos[s][h.player.id]);
+    const finalPos = series[series.length - 1];
+    const worst = Math.max(...series);
+    const best = Math.min(...series);
+    return {
+      player: h.player,
+      climb: worst - finalPos, // remontada desde su peor momento hasta ahora
+      fall: finalPos - best,   // caída desde su mejor momento hasta ahora
+    };
+  });
 
   const names = (items) => items.map((x) => x.player.name).join(" y ");
   const fmtPos = (n) => {
@@ -1924,7 +1968,7 @@ function Resumen({ players, admin, standings }) {
   const hotStreak = topBy(perPlayer.filter((p) => p.curStreak > 0), (p) => p.curStreak);
   const coldStreak = topBy(perPlayer.filter((p) => p.curStreak < 0), (p) => -p.curStreak);
   const climber = topBy(movers.filter((m) => m.climb > 0), (m) => m.climb);
-  const faller = topBy(movers.filter((m) => m.climb < 0), (m) => -m.climb);
+  const faller = topBy(movers.filter((m) => m.fall > 0), (m) => m.fall);
 
   const playedMatches = perMatch.filter((m) => m.played > 0);
   const easiest = topBy(playedMatches, (m) => m.pct);
@@ -1996,58 +2040,29 @@ function Resumen({ players, admin, standings }) {
 /* ---------------- Picks (pronósticos revelados) ---------------- */
 function Picks({ admin, standings, meId }) {
   const round = ROUNDS.find((r) => r.id === admin.openRound) || ROUNDS[0];
-  const locked = !!admin.locked?.[round.id];
-  const fx = fixturesFor(admin, round.id);
-  const [selected, setSelected] = useState([]);
-
-  if (!locked) {
-    return (
-      <div className="empty">
-        Los pronósticos se revelan cuando el admin cierra la ronda.<br />
-        <span style={{ fontSize: 12 }}>Vuelve aquí una vez cerrada.</span>
-      </div>
-    );
-  }
-
-  if (fx.length === 0) {
-    return <div className="empty">No hay cruces cargados para esta ronda.</div>;
-  }
+  const roundIdx = ROUNDS.findIndex((r) => r.id === round.id);
+  const pastRounds = ROUNDS.slice(0, roundIdx).filter(
+    (r) => admin.locked?.[r.id] && fixturesFor(admin, r.id).length > 0
+  );
 
   const allPlayers = standings.map((s) => s.p);
   const me = allPlayers.find((p) => p.id === meId) || null;
   const others = allPlayers.filter((p) => p.id !== meId);
 
+  const [selected, setSelected] = useState([]);
+  const [showPast, setShowPast] = useState(false);
   const togglePlayer = (id) =>
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
 
-  const visibleOthers =
-    selected.length === 0 ? others : others.filter((p) => selected.includes(p.id));
+  const locked = !!admin.locked?.[round.id];
+  const fx = fixturesFor(admin, round.id);
+  const visibleOthers = selected.length === 0 ? others : others.filter((p) => selected.includes(p.id));
   const visiblePlayers = [...(me ? [me] : []), ...visibleOthers];
-
-  // Orden de visualización: cronológico para r32, original para el resto
-  const displayOrder = round.id === "r32"
-    ? R32_DATE_ORDER.filter(idx => idx < fx.length)
-    : fx.map((_, i) => i);
-
-  // Primer partido sin resultado en orden cronológico
-  const nextI = displayOrder.find(origIdx => {
-    const res = admin.results?.[matchId(round.id, origIdx)];
-    return !(res && res.adv && res.h !== "" && res.a !== "");
-  }) ?? -1;
-
-  const indexedFx = displayOrder.map(origIdx => ({ m: fx[origIdx], i: origIdx }));
 
   return (
     <div className="pane">
-      <div className="round-banner">
-        <div>
-          <h2>{round.name}</h2>
-          <span className="mult">pronósticos revelados</span>
-        </div>
-      </div>
-
       {others.length > 0 && (
         <div>
           <p className="mini muted" style={{ marginBottom: 8 }}>Comparar con:</p>
@@ -2070,6 +2085,65 @@ function Picks({ admin, standings, meId }) {
           </div>
         </div>
       )}
+
+      {!locked ? (
+        <div className="empty">
+          Los pronósticos se revelan cuando el admin cierra la ronda.<br />
+          <span style={{ fontSize: 12 }}>Vuelve aquí una vez cerrada.</span>
+        </div>
+      ) : fx.length === 0 ? (
+        <div className="empty">No hay cruces cargados para esta ronda.</div>
+      ) : (
+        <PicksRoundTable
+          round={round} admin={admin} meId={meId}
+          allPlayers={allPlayers} visiblePlayers={visiblePlayers}
+        />
+      )}
+
+      {pastRounds.length > 0 && (
+        <section className="card past-picks">
+          <button className="btn sm" onClick={() => setShowPast((s) => !s)}>
+            {showPast ? "Ocultar" : "Ver"} picks de {pastRounds.map((r) => r.short).join(", ")}
+          </button>
+          {showPast && pastRounds.map((r) => (
+            <div key={r.id} className="past-picks-block">
+              <PicksRoundTable
+                round={r} admin={admin} meId={meId}
+                allPlayers={allPlayers} visiblePlayers={visiblePlayers}
+              />
+            </div>
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function PicksRoundTable({ round, admin, meId, allPlayers, visiblePlayers }) {
+  const fx = fixturesFor(admin, round.id);
+  const roundSched = ROUND_SCHEDULE[round.id];
+
+  // Orden de visualización: cronológico si hay calendario, original si no
+  const displayOrder = roundSched?.order
+    ? roundSched.order.filter(idx => idx < fx.length)
+    : fx.map((_, i) => i);
+
+  // Primer partido sin resultado en orden cronológico
+  const nextI = displayOrder.find(origIdx => {
+    const res = admin.results?.[matchId(round.id, origIdx)];
+    return !(res && res.adv && res.h !== "" && res.a !== "");
+  }) ?? -1;
+
+  const indexedFx = displayOrder.map(origIdx => ({ m: fx[origIdx], i: origIdx }));
+
+  return (
+    <div>
+      <div className="round-banner">
+        <div>
+          <h2>{round.name}</h2>
+          <span className="mult">pronósticos revelados</span>
+        </div>
+      </div>
 
       <div className="picks-scroll">
         <table className="picks-table">
@@ -2113,9 +2187,9 @@ function Picks({ admin, standings, meId }) {
               return (
                 <tr key={id} className={`picks-row${hideOthers ? " picks-row-hidden" : ""}`}>
                   <td className="picks-match-cell">
-                    {round.id === "r32" && R32_DATES[i] && (
+                    {roundSched?.dates?.[i] && (
                       <div className="match-date">
-                        {R32_DATES[i]}{R32_TIMES[i] ? <span className="match-time"> · {R32_TIMES[i]}</span> : ""}
+                        {roundSched.dates[i]}{roundSched.times[i] ? <span className="match-time"> · {roundSched.times[i]}</span> : ""}
                       </div>
                     )}
                     <div className="picks-teams">
@@ -3178,6 +3252,10 @@ const CSS = `
 }
 .card ul{margin:0;padding-left:18px;line-height:1.8;font-size:14px}
 .card p{margin:0;line-height:1.6;font-size:14px}
+
+/* ── Picks · rondas anteriores ──────────────────────────── */
+.past-picks{margin-top:14px}
+.past-picks-block{margin-top:16px}
 
 /* ── Resumen ─────────────────────────────────────────────── */
 .resumen-hero{margin-bottom:12px}
