@@ -177,12 +177,22 @@ const R32_TIMES = {
 const R16_DATES = ["4 Jul", "4 Jul", "5 Jul", "6 Jul", "6 Jul", "7 Jul", "7 Jul", "7 Jul"];
 const R16_TIMES = ["19:00", "23:00", "22:00", "02:00", "21:00", "02:00", "18:00", "22:00"];
 
+// Cuartos: fechas/horas oficiales (horario peninsular España). Cargar los
+// cruces en admin.fixtures.qf en este mismo orden cronológico:
+//   1) Francia – Marruecos   · 9 Jul 22:00
+//   2) España – Bélgica      · 10 Jul 21:00
+//   3) Noruega – Inglaterra  · 11 Jul 23:00
+//   4) Argentina – Suiza     · 12 Jul 03:00 (madrugada del domingo)
+const QF_DATES = ["9 Jul", "10 Jul", "11 Jul", "12 Jul"];
+const QF_TIMES = ["22:00", "21:00", "23:00", "03:00"];
+
 // Calendario por ronda: qué array de fechas/horas usar y en qué orden
 // cronológico recorrer los índices de fixturesFor(admin, roundId).
 // order=null → los cruces ya están cargados en orden cronológico (índice = orden).
 const ROUND_SCHEDULE = {
   r32: { dates: R32_DATES, times: R32_TIMES, order: R32_DATE_ORDER },
   r16: { dates: R16_DATES, times: R16_TIMES, order: null },
+  qf:  { dates: QF_DATES,  times: QF_TIMES,  order: null },
 };
 
 const PLAYER_COLORS = {
@@ -1223,11 +1233,16 @@ function topBy(list, keyFn) {
   return { value, items: list.filter(x => keyFn(x) === value) };
 }
 
-function computeR32Stats(players, admin) {
-  const fx = fixturesFor(admin, "r32");
-  const order = R32_DATE_ORDER.filter(idx => idx < fx.length);
+function computeRoundStats(roundId, players, admin) {
+  const fx = fixturesFor(admin, roundId);
+  const sched = ROUND_SCHEDULE[roundId];
+  const order = roundId === "r32"
+    ? R32_DATE_ORDER.filter(idx => idx < fx.length)
+    : sched?.order
+      ? sched.order.filter(idx => idx < fx.length)
+      : fx.map((_, i) => i);
   const resolvedOrder = order.filter(i => {
-    const res = admin.results?.[matchId("r32", i)];
+    const res = admin.results?.[matchId(roundId, i)];
     return res && res.adv != null && res.h !== "" && res.a !== "";
   });
 
@@ -1236,9 +1251,9 @@ function computeR32Stats(players, admin) {
     let bestHitStreak = 0, bestMissStreak = 0, runHit = 0, runMiss = 0;
     resolvedOrder.forEach((i) => {
       const m = fx[i];
-      const id = matchId("r32", i);
+      const id = matchId(roundId, i);
       const res = admin.results[id];
-      const pred = p.preds?.r32?.[id];
+      const pred = p.preds?.[roundId]?.[id];
       const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
       if (!hasPred) { runHit = 0; runMiss = 0; return; }
       advPlayed++;
@@ -1259,10 +1274,10 @@ function computeR32Stats(players, admin) {
     let curStreak = 0;
     for (let k = resolvedOrder.length - 1; k >= 0; k--) {
       const i = resolvedOrder[k];
-      const id = matchId("r32", i);
+      const id = matchId(roundId, i);
       const res = admin.results[id];
       const m = fx[i];
-      const pred = p.preds?.r32?.[id];
+      const pred = p.preds?.[roundId]?.[id];
       const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
       if (!hasPred) break;
       const hit = predAdv(pred, m[0], m[1]) === res.adv;
@@ -1280,12 +1295,12 @@ function computeR32Stats(players, admin) {
   });
 
   const perMatch = resolvedOrder.map((i) => {
-    const id = matchId("r32", i);
+    const id = matchId(roundId, i);
     const res = admin.results[id];
     const m = fx[i];
     let hits = 0, played = 0;
     players.forEach((p) => {
-      const pred = p.preds?.r32?.[id];
+      const pred = p.preds?.[roundId]?.[id];
       const hasPred = pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
       if (!hasPred) return;
       played++;
@@ -1926,31 +1941,73 @@ function StatCard({ emoji, title, value, names }) {
 }
 
 function Resumen({ players, admin, standings }) {
-  const { perPlayer, perMatch, playedCount, totalCount } = computeR32Stats(players, admin);
+  const [active, setActive] = useState(null);
 
-  if (playedCount === 0) {
+  const dataRounds = ROUNDS.filter((r) => fixturesFor(admin, r.id).length > 0);
+  if (dataRounds.length === 0) {
     return (
       <div className="empty">
-        El resumen se llenará de datos jugosos en cuanto se resuelva el primer partido de dieciseisavos.
+        El resumen se llenará de datos jugosos en cuanto se carguen los cruces de la ronda.
       </div>
     );
   }
 
-  const { histories } = buildHistory(players, admin);
+  // Ronda por defecto: la más avanzada con al menos un partido resuelto
+  // (es decir, la última ronda "cerrada" con datos que contar).
+  const closedRound = [...dataRounds].reverse().find(
+    (r) => computeRoundStats(r.id, players, admin).playedCount > 0
+  );
+  const R = dataRounds.find((r) => r.id === active) || closedRound || dataRounds[dataRounds.length - 1];
+
+  const roundChips = dataRounds.length > 1 && (
+    <div className="chips" style={{ marginBottom: 12 }}>
+      {dataRounds.map((r) => (
+        <button
+          key={r.id}
+          className={R.id === r.id ? "chip on" : "chip"}
+          onClick={() => setActive(r.id)}
+        >
+          {r.short}
+        </button>
+      ))}
+    </div>
+  );
+
+  const { perPlayer, perMatch, playedCount, totalCount } = computeRoundStats(R.id, players, admin);
+
+  if (playedCount === 0) {
+    return (
+      <div className="pane">
+        {roundChips}
+        <div className="empty">
+          El resumen de {R.name.toLowerCase()} se llenará de datos jugosos en cuanto se resuelva el primer partido.
+        </div>
+      </div>
+    );
+  }
+
+  const { histories, events } = buildHistory(players, admin);
   const steps = (histories[0]?.snap.length || 1) - 1;
   // Recorrido completo de posiciones tras cada partido (excluyendo el paso 0,
   // donde todos empatan a 0 puntos y "mejor/peor posición" no dice nada real).
   const allPos = Array.from({ length: steps + 1 }, (_, s) => positionsAt(histories, s));
+  // Ventana de pasos que corresponde solo a los partidos de la ronda seleccionada,
+  // para que "quién más ha subido/caído" hable de esta ronda, no de todo el torneo.
+  const roundEventSteps = events
+    .map((ev, idx) => (ev.roundId === R.id ? idx + 1 : -1))
+    .filter((s) => s !== -1);
+  const roundStartStep = roundEventSteps.length ? roundEventSteps[0] - 1 : 0;
+  const roundEndStep = roundEventSteps.length ? roundEventSteps[roundEventSteps.length - 1] : steps;
   const movers = histories.map((h) => {
     const series = [];
-    for (let s = 1; s <= steps; s++) series.push(allPos[s][h.player.id]);
+    for (let s = roundStartStep + 1; s <= roundEndStep; s++) series.push(allPos[s][h.player.id]);
     const finalPos = series[series.length - 1];
     const worst = Math.max(...series);
     const best = Math.min(...series);
     return {
       player: h.player,
-      climb: worst - finalPos, // remontada desde su peor momento hasta ahora
-      fall: finalPos - best,   // caída desde su mejor momento hasta ahora
+      climb: worst - finalPos, // remontada desde su peor momento hasta ahora (en esta ronda)
+      fall: finalPos - best,   // caída desde su mejor momento hasta ahora (en esta ronda)
     };
   });
 
@@ -1974,15 +2031,27 @@ function Resumen({ players, admin, standings }) {
   const easiest = topBy(playedMatches, (m) => m.pct);
   const hardest = topBy(playedMatches, (m) => -m.pct);
 
-  const totalPts = standings.reduce((acc, s) => acc + s.s.total, 0);
-  const totalPending = standings.reduce((acc, s) => acc + s.s.pending, 0);
+  const totalPts = standings.reduce((acc, s) => acc + (s.s.byRound[R.id] || 0), 0);
+  const fx = fixturesFor(admin, R.id);
+  const totalPending = fx.reduce((acc, m, i) => {
+    const id = matchId(R.id, i);
+    const res = admin.results?.[id];
+    const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
+    if (resolved) return acc;
+    const withPred = players.filter((p) => {
+      const pr = p.preds?.[R.id]?.[id];
+      return pr && (pr.h !== "" || pr.a !== "");
+    }).length;
+    return acc + withPred;
+  }, 0);
 
   return (
     <div className="pane">
+      {roundChips}
       <section className="card resumen-hero">
-        <h3>Resumen · Dieciseisavos</h3>
+        <h3>Resumen · {R.name}</h3>
         <p className="mini muted">
-          {playedCount} de {totalCount} partidos resueltos · {totalPts} puntos repartidos entre todos · {totalPending} pronósticos aún en juego
+          {playedCount} de {totalCount} partidos resueltos · {totalPts} puntos repartidos entre todos en esta ronda · {totalPending} pronósticos aún en juego
         </p>
       </section>
 
@@ -2027,9 +2096,9 @@ function Resumen({ players, admin, standings }) {
             value={`${Math.round(easiest.value * 100)}% acertó el pase`}
             names={easiest.items.map((m) => `${m.teams[0]} – ${m.teams[1]}`).join(" · ")} />
         )}
-        {hardest.items.length > 0 && hardest.value < 1 && (
+        {hardest.items.length > 0 && -hardest.value < 1 && (
           <StatCard emoji="🎲" title="El partido más tramposo"
-            value={`solo ${Math.round(hardest.value * 100)}% acertó el pase`}
+            value={`solo ${Math.round(-hardest.value * 100)}% acertó el pase`}
             names={hardest.items.map((m) => `${m.teams[0]} – ${m.teams[1]}`).join(" · ")} />
         )}
       </div>
@@ -2141,7 +2210,7 @@ function PicksRoundTable({ round, admin, meId, allPlayers, visiblePlayers }) {
       <div className="round-banner">
         <div>
           <h2>{round.name}</h2>
-          <span className="mult">pronósticos revelados</span>
+          <span className="mult">picks revelados 3h antes de cada partido</span>
         </div>
       </div>
 
@@ -2168,7 +2237,13 @@ function PicksRoundTable({ round, admin, meId, allPlayers, visiblePlayers }) {
               const resolved = res && res.adv != null && res.h !== "" && res.a !== "";
               const isLive   = res && res.live && !resolved;
               const isNext = i === nextI;
-              const hideOthers = !resolved && !isLive && !isNext;
+              // Mismo umbral que el countdown de arriba: los picks de los demás
+              // se revelan a partir de 3h antes del saque de cada partido.
+              const kickoff = roundSched?.dates?.[i] && roundSched?.times?.[i]
+                ? parseMatchDateTime(roundSched.dates[i], roundSched.times[i])
+                : null;
+              const withinReveal = kickoff ? kickoff - new Date() < 10800000 : false;
+              const hideOthers = !resolved && !isLive && !withinReveal;
 
               // Consenso: cuántos jugadores apostaron por cada equipo
               const consHome = allPlayers.filter(pl => {
