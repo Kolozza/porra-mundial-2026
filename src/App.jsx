@@ -186,6 +186,13 @@ const R16_TIMES = ["19:00", "23:00", "22:00", "02:00", "21:00", "02:00", "18:00"
 const QF_DATES = ["9 Jul", "10 Jul", "11 Jul", "12 Jul"];
 const QF_TIMES = ["22:00", "21:00", "23:00", "03:00"];
 
+// Semifinales: fechas/horas oficiales (horario peninsular España). Cargar los
+// cruces en admin.fixtures.sf en este mismo orden cronológico:
+//   1) Francia – España       · 14 Jul 21:00
+//   2) Inglaterra – Argentina · 15 Jul 21:00
+const SF_DATES = ["14 Jul", "15 Jul"];
+const SF_TIMES = ["21:00", "21:00"];
+
 // Calendario por ronda: qué array de fechas/horas usar y en qué orden
 // cronológico recorrer los índices de fixturesFor(admin, roundId).
 // order=null → los cruces ya están cargados en orden cronológico (índice = orden).
@@ -193,6 +200,7 @@ const ROUND_SCHEDULE = {
   r32: { dates: R32_DATES, times: R32_TIMES, order: R32_DATE_ORDER },
   r16: { dates: R16_DATES, times: R16_TIMES, order: null },
   qf:  { dates: QF_DATES,  times: QF_TIMES,  order: null },
+  sf:  { dates: SF_DATES,  times: SF_TIMES,  order: null },
 };
 
 const PLAYER_COLORS = {
@@ -2433,6 +2441,7 @@ function Reglas() {
 ================================================================ */
 function AdminPage() {
   const [admin, setAdmin] = useState(DEFAULT_ADMIN);
+  const [players, setPlayers] = useState([]);
   const [adminMode, setAdminMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -2444,7 +2453,10 @@ function AdminPage() {
   };
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from("v_admin").select("*").single();
+    const [{ data }, { data: playersData }] = await Promise.all([
+      supabase.from("v_admin").select("*").single(),
+      supabase.from("v_players").select("*"),
+    ]);
     if (data) {
       setAdmin({
         openRound: data.open_round || "r32",
@@ -2456,6 +2468,7 @@ function AdminPage() {
         adminClaimed: data.admin_claimed,
       });
     }
+    if (playersData) setPlayers(playersData);
     setLoading(false);
   }, []);
 
@@ -2540,7 +2553,7 @@ function AdminPage() {
       {loading ? (
         <div className="empty">Cargando…</div>
       ) : adminMode ? (
-        <AdminPanel admin={admin} saveAdmin={saveAdmin} onLogout={handleLogout} flash={flash} />
+        <AdminPanel admin={admin} players={players} saveAdmin={saveAdmin} onLogout={handleLogout} flash={flash} />
       ) : (
         <AdminLogin
           adminClaimed={admin.adminClaimed}
@@ -2634,8 +2647,47 @@ function ForceSyncButton({ flash }) {
   );
 }
 
+/* ---------------- Progreso de pronósticos (sin revelar el contenido) ---------------- */
+function PicksProgress({ round, fx, players }) {
+  const rows = players
+    .map((p) => {
+      const done = fx.filter((_, i) => {
+        const pred = p.preds?.[round.id]?.[matchId(round.id, i)];
+        return pred && pred.h !== "" && pred.h != null && pred.a !== "" && pred.a != null;
+      }).length;
+      return { name: p.name, done };
+    })
+    .sort((a, b) => b.done - a.done || a.name.localeCompare(b.name, "es"));
+
+  const allDone = rows.length > 0 && rows.every((r) => r.done === fx.length);
+
+  return (
+    <Card title={`Progreso de pronósticos · ${round.name}`}>
+      <p className="mini muted" style={{ marginBottom: 8 }}>
+        Solo cuenta cuántos partidos tiene rellenos cada uno — nadie ve el contenido hasta que cierres la ronda.
+      </p>
+      <div className="matches">
+        {rows.map((r) => (
+          <div
+            key={r.name}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 2px" }}
+          >
+            <span>{r.done === fx.length ? "✅" : r.done > 0 ? "🕓" : "⬜"} {r.name}</span>
+            <span className="mini muted">{r.done}/{fx.length}</span>
+          </div>
+        ))}
+      </div>
+      {allDone && (
+        <p className="mini" style={{ color: "var(--green)", marginTop: 6 }}>
+          Todos han pronosticado ya — puedes cerrar la ronda.
+        </p>
+      )}
+    </Card>
+  );
+}
+
 /* ---------------- Admin panel (tras login) ---------------- */
-function AdminPanel({ admin, saveAdmin, onLogout, flash }) {
+function AdminPanel({ admin, players, saveAdmin, onLogout, flash }) {
   const round = ROUNDS.find((r) => r.id === admin.openRound) || ROUNDS[0];
   const fx = fixturesFor(admin, round.id);
 
@@ -2679,6 +2731,10 @@ function AdminPanel({ admin, saveAdmin, onLogout, flash }) {
           Cerrar pronósticos de {round.name.toLowerCase()} (bloquea ediciones)
         </label>
       </Card>
+
+      {fx.length > 0 && (
+        <PicksProgress round={round} fx={fx} players={players} />
+      )}
 
       {round.id !== "r32" && (
         <FixtureEditor admin={admin} saveAdmin={saveAdmin} roundId={round.id} />
