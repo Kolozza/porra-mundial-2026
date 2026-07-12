@@ -127,7 +127,7 @@ export default async function handler(req, res) {
 
   const r32Lookup  = buildR32Lookup();
   const newResults = { ...(adminData.results  || {}) };
-  const newFixtures = { ...(adminData.fixtures || {}) };
+  const fixtures   = adminData.fixtures || {};
   let updated = 0;
   let live = 0;
 
@@ -146,19 +146,20 @@ export default async function handler(req, res) {
     const awaySpa = TEAM_MAP[awayEng];
     if (!homeSpa || !awaySpa) continue;
 
-    // Encontrar el ID del partido
+    // Encontrar el ID del partido. Los cruces los carga siempre el admin a
+    // mano (FixtureEditor); comparamos sin distinguir mayúsculas/espacios
+    // porque así es como los teclea, y NUNCA creamos un cruce nuevo aquí —
+    // si no hay match, ese partido aún no se ha cargado y se ignora.
     let matchId;
     if (roundId === "r32") {
       matchId = r32Lookup[`${homeSpa}|${awaySpa}`];
       if (!matchId) continue;
     } else {
-      const fixtures = [...(newFixtures[roundId] || [])];
-      let idx = fixtures.findIndex(([h, a]) => h === homeSpa && a === awaySpa);
-      if (idx === -1) {
-        fixtures.push([homeSpa, awaySpa]);
-        idx = fixtures.length - 1;
-        newFixtures[roundId] = fixtures;
-      }
+      const norm = (s) => (s || "").trim().toLowerCase();
+      const idx = (fixtures[roundId] || []).findIndex(
+        ([h, a]) => norm(h) === norm(homeSpa) && norm(a) === norm(awaySpa)
+      );
+      if (idx === -1) continue;
       matchId = `${roundId}-${idx}`;
     }
 
@@ -238,7 +239,7 @@ export default async function handler(req, res) {
   // 4. Guardar en Supabase
   const { data: saved } = await supabase.rpc("admin_save", {
     p_admin_secret: adminSecret,
-    p_patch: { results: newResults, fixtures: newFixtures },
+    p_patch: { results: newResults },
   });
 
   return res.json({

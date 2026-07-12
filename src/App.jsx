@@ -248,7 +248,7 @@ const COUNTRY_CODES = {
 };
 
 function Flag({ country, size = 24 }) {
-  const code = COUNTRY_CODES[country];
+  const code = COUNTRY_CODES[country] || COUNTRY_CODES_BY_NORM[normName(country)];
   if (!code) return null;
   const isSubdivision = code.includes("-");
   return (
@@ -288,6 +288,14 @@ const fixturesFor = (admin, roundId) =>
   roundId === "r32" ? R32 : admin.fixtures?.[roundId] || [];
 
 const matchId = (roundId, i) => `${roundId}-${i}`;
+
+// Ronda a ronda se cargan los cruces a mano (FixtureEditor), sin validar
+// mayúsculas ni espacios. Normalizamos para que "FRANCIA " siga casando
+// con la clave "Francia" de COUNTRY_CODES y no se quede sin bandera.
+const normName = (s) => (s || "").trim().toLowerCase();
+const COUNTRY_CODES_BY_NORM = Object.fromEntries(
+  Object.entries(COUNTRY_CODES).map(([name, code]) => [normName(name), code])
+);
 
 const predAdv = (p, home, away) => {
   if (!p || p.h === "" || p.a === "" || p.h == null || p.a == null) return null;
