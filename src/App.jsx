@@ -1204,27 +1204,47 @@ function buildHistory(players, admin) {
     const order = R.id === "r32"
       ? R32_DATE_ORDER.filter(idx => idx < fx.length)
       : fx.map((_, i) => i);
+    let roundEventCount = 0;
     for (const i of order) {
       const m = fx[i];
       const id = matchId(R.id, i);
       const res = admin.results?.[id];
-      if (res && res.adv != null && res.h !== "" && res.a !== "")
+      if (res && res.adv != null && res.h !== "" && res.a !== "") {
         events.push({ roundId: R.id, id, m, res, mult: R.mult });
+        roundEventCount++;
+      }
+    }
+    // Pleno de ronda: en cuanto se resuelve el último partido de una ronda
+    // con pleno, se añade como un paso extra en la carrera (mismo roundId,
+    // así no crea un nuevo tramo en el gráfico).
+    if (PLENO[R.id] && fx.length > 0 && roundEventCount === fx.length) {
+      events.push({ roundId: R.id, pleno: true, fx });
     }
   }
   const histories = players.map(player => {
     let pts = 0;
     const snap = [0];
     events.forEach(ev => {
-      const pred = player.preds?.[ev.roundId]?.[ev.id];
       let p = 0;
-      if (pred && (pred.h !== "" || pred.a !== "")) {
-        const pa = predAdv(pred, ev.m[0], ev.m[1]);
-        if (pa === ev.res.adv) p += 3;
-        const rh = ev.res.h90 != null && ev.res.h90 !== "" ? Number(ev.res.h90) : Number(ev.res.h);
-        const ra = ev.res.a90 != null && ev.res.a90 !== "" ? Number(ev.res.a90) : Number(ev.res.a);
-        if (Number(pred.h) === rh && Number(pred.a) === ra) p += 2;
-        p *= ev.mult;
+      if (ev.pleno) {
+        const allCorrect = ev.fx.every((m, i) => {
+          const id = matchId(ev.roundId, i);
+          const res = admin.results?.[id];
+          const pred = player.preds?.[ev.roundId]?.[id];
+          const pa = pred ? predAdv(pred, m[0], m[1]) : null;
+          return pa && pa === res.adv;
+        });
+        if (allCorrect) p = PLENO[ev.roundId];
+      } else {
+        const pred = player.preds?.[ev.roundId]?.[ev.id];
+        if (pred && (pred.h !== "" || pred.a !== "")) {
+          const pa = predAdv(pred, ev.m[0], ev.m[1]);
+          if (pa === ev.res.adv) p += 3;
+          const rh = ev.res.h90 != null && ev.res.h90 !== "" ? Number(ev.res.h90) : Number(ev.res.h);
+          const ra = ev.res.a90 != null && ev.res.a90 !== "" ? Number(ev.res.a90) : Number(ev.res.a);
+          if (Number(pred.h) === rh && Number(pred.a) === ra) p += 2;
+          p *= ev.mult;
+        }
       }
       pts += p;
       snap.push(pts);
