@@ -6,7 +6,7 @@ import { supabase } from "./supabase";
    Reglas (acordadas):
    - 3 pts por acertar quién pasa la eliminatoria
    - 2 pts por acertar el resultado exacto a los 90'
-   - Multiplicadores por ronda: x1 / x1 / x2 / x3 / x3
+   - Multiplicadores por ronda: x1 / x1 / x2 / x3 / x3 / x3 (3er puesto puntúa como semis)
    - Bonus de campeón (bloqueado al inicio): +15
    Identidad por enlace personal (secreto en localStorage / ?key=)
 ------------------------------------------------------------------*/
@@ -16,6 +16,7 @@ const ROUNDS = [
   { id: "r16", name: "Octavos", short: "8avos", mult: 1 },
   { id: "qf", name: "Cuartos", short: "Cuartos", mult: 2 },
   { id: "sf", name: "Semifinales", short: "Semis", mult: 3 },
+  { id: "third", name: "3er y 4º puesto", short: "3º puesto", mult: 3 },
   { id: "final", name: "Final", short: "Final", mult: 3 },
 ];
 const BONUS = {
@@ -193,14 +194,20 @@ const QF_TIMES = ["22:00", "21:00", "23:00", "03:00"];
 const SF_DATES = ["14 Jul", "15 Jul"];
 const SF_TIMES = ["21:00", "21:00"];
 
+// 3er y 4º puesto: fecha/hora oficial (horario peninsular España).
+//   Francia – Inglaterra · 18 Jul 23:00
+const THIRD_DATES = ["18 Jul"];
+const THIRD_TIMES = ["23:00"];
+
 // Calendario por ronda: qué array de fechas/horas usar y en qué orden
 // cronológico recorrer los índices de fixturesFor(admin, roundId).
 // order=null → los cruces ya están cargados en orden cronológico (índice = orden).
 const ROUND_SCHEDULE = {
-  r32: { dates: R32_DATES, times: R32_TIMES, order: R32_DATE_ORDER },
-  r16: { dates: R16_DATES, times: R16_TIMES, order: null },
-  qf:  { dates: QF_DATES,  times: QF_TIMES,  order: null },
-  sf:  { dates: SF_DATES,  times: SF_TIMES,  order: null },
+  r32:   { dates: R32_DATES,   times: R32_TIMES,   order: R32_DATE_ORDER },
+  r16:   { dates: R16_DATES,   times: R16_TIMES,   order: null },
+  qf:    { dates: QF_DATES,    times: QF_TIMES,    order: null },
+  sf:    { dates: SF_DATES,    times: SF_TIMES,    order: null },
+  third: { dates: THIRD_DATES, times: THIRD_TIMES, order: null },
 };
 
 const PLAYER_COLORS = {
@@ -2397,13 +2404,14 @@ function Reglas() {
           <div className="mult-r total">
             <span>Total de rondas</span>
             <span></span>
-            <b>205 pts</b>
+            <b>220 pts</b>
           </div>
         </div>
         <p className="mini muted">
           Sin multiplicador, semis y final valdrían una miseria. Subir por partido desde
-          cuartos deja un 41% de los puntos para el final, así el rezagado remonta — pero
-          la final se queda en x3 para que un solo partido con suerte no tumbe al líder.
+          cuartos deja un 45% de los puntos en la recta final (cuartos, semis, 3er puesto y
+          final), así el rezagado remonta — pero la final se queda en x3 para que un solo
+          partido con suerte no tumbe al líder.
         </p>
       </Card>
       <Card title="Apuestas de futuro (al inicio)">
@@ -2422,8 +2430,8 @@ function Reglas() {
           <li>Dieciseisavos: <b>+{PLENO.r32}</b> · Octavos: <b>+{PLENO.r16}</b> · Cuartos: <b>+{PLENO.qf}</b>.</li>
         </ul>
         <p className="mini muted">
-          Premia la ronda perfecta. Semis y final no tienen pleno (con 2 y 1 partido sería
-          trivial). Bote total de bonus: {BONUS_TOTAL} pts (~17% del juego).
+          Premia la ronda perfecta. Semis, 3er puesto y final no tienen pleno (partidos
+          únicos, sería trivial). Bote total de bonus: {BONUS_TOTAL} pts (~16% del juego).
         </p>
       </Card>
       <Card title="Empates a 90'">
@@ -3369,7 +3377,7 @@ const CSS = `
   margin-top:4px;font-weight:800;
 }
 .mult-r.total b{color:var(--gold)}
-.mult-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
+.mult-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(56px,1fr));gap:6px;margin-bottom:12px}
 .mult-cell{
   background:var(--panel2);border:1px solid var(--line);
   border-radius:10px;padding:10px 4px;text-align:center;
